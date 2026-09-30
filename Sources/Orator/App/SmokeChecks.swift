@@ -29,6 +29,15 @@ func checkEditingInteractions(_ editor: EditorWindowController) throws {
     document.undoManager?.undo()
     guard editor.currentSlide == original else { fatalError("Inline text undo failed") }
 
+    window.makeFirstResponder(editor.notes)
+    document.undoManager?.beginUndoGrouping()
+    editor.notes.string="Updated notes"
+    editor.textDidChange(Notification(name:NSText.didChangeNotification,object:editor.notes))
+    document.undoManager?.endUndoGrouping()
+    document.undoManager?.undo()
+    guard editor.notes.string == original.notes else { fatalError("Notes undo did not update the focused editor") }
+    window.makeFirstResponder(canvas)
+
     let width=canvas.bounds.width
     editor.toggleInspector(nil); window.contentView?.layoutSubtreeIfNeeded()
     guard editor.inspector.isHidden else { fatalError("Inspector did not hide") }

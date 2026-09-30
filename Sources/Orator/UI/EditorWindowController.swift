@@ -103,7 +103,11 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
         canvas.selected.formIntersection(Set(currentSlide.objects.map(\.id)))
         navigator.reloadData()
         if let row=presentation.deck.slides.firstIndex(where: { $0.id == selectedSlideID }), !navigator.selectedRowIndexes.contains(row) { navigator.selectRowIndexes(IndexSet(integer:row),byExtendingSelection:false) }
-        if window?.firstResponder !== notes { notes.string=currentSlide.notes }
+        if notes.string != currentSlide.notes {
+            let insertion=notes.selectedRange().location
+            notes.string=currentSlide.notes
+            notes.setSelectedRange(NSRange(location:min(insertion,(notes.string as NSString).length),length:0))
+        }
         status.stringValue="Slide \((presentation.deck.slides.firstIndex { $0.id == selectedSlideID } ?? 0)+1) of \(presentation.deck.slides.count)   ·   \(Int(canvas.scale*100))%"
         canvas.needsDisplay=true; inspector.refresh()
         thumbnails=thumbnails.filter { id,_ in presentation.deck.slides.contains { $0.id == id } }
@@ -303,9 +307,11 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
             guard !rows.isEmpty else { return }
             var slide=self.currentSlide; guard let i=slide.objects.firstIndex(where: { $0.id == object.id }) else { return }
             if object.kind == .table {
-                let width=rows.map(\.count).max() ?? 1; slide.objects[i].table?.cells=rows.map { $0+Array(repeating:"",count:width-$0.count) }
+                let width=rows.map(\.count).max() ?? 1
+                guard rows.count <= 1000, width <= 100 else { self.presentation.presentError(FormatError.invalid("tables support up to 1,000 rows and 100 columns")); return }
+                slide.objects[i].table?.cells=rows.map { $0+Array(repeating:"",count:width-$0.count) }
             } else {
-                guard rows.allSatisfy({ $0.count == 2 && Double($0[1])?.isFinite == true }) else { self.presentation.presentError(FormatError.invalid("each chart row needs a category, a tab, and a finite number")); return }
+                guard rows.count <= 10000, rows.allSatisfy({ $0.count == 2 && Double($0[1]).map { $0.isFinite && abs($0) <= 1e12 } == true }) else { self.presentation.presentError(FormatError.invalid("each chart row needs a category, a tab, and a finite number")); return }
                 slide.objects[i].chart?.labels=rows.map { $0[0] }; slide.objects[i].chart?.values=rows.compactMap { Double($0[1]) }
             }; self.commit(slide,name:"Edit Data")
         }
