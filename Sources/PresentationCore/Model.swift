@@ -1,0 +1,179 @@
+import Foundation
+
+public struct Point: Codable, Equatable, Sendable {
+    public var x: Double; public var y: Double
+    public init(_ x: Double = 0, _ y: Double = 0) { self.x = x; self.y = y }
+}
+public struct Rect: Codable, Equatable, Sendable {
+    public var x: Double; public var y: Double; public var width: Double; public var height: Double
+    public init(_ x: Double, _ y: Double, _ width: Double, _ height: Double) {
+        self.x = x; self.y = y; self.width = width; self.height = height
+    }
+    public var maxX: Double { x + width }; public var maxY: Double { y + height }
+    public var midX: Double { x + width / 2 }; public var midY: Double { y + height / 2 }
+    public func contains(_ p: Point) -> Bool { p.x >= x && p.x <= maxX && p.y >= y && p.y <= maxY }
+    public func intersects(_ r: Rect) -> Bool { x <= r.maxX && maxX >= r.x && y <= r.maxY && maxY >= r.y }
+    public func union(_ r: Rect) -> Rect {
+        Rect(min(x,r.x), min(y,r.y), max(maxX,r.maxX)-min(x,r.x), max(maxY,r.maxY)-min(y,r.y))
+    }
+}
+public struct RGBA: Codable, Equatable, Sendable {
+    public var red: Double; public var green: Double; public var blue: Double; public var alpha: Double
+    public init(_ r: Double, _ g: Double, _ b: Double, _ a: Double = 1) { red=r; green=g; blue=b; alpha=a }
+    public static let ink = RGBA(0.09,0.11,0.14)
+    public static let white = RGBA(1,1,1)
+    public static let accent = RGBA(0.17,0.34,0.78)
+}
+public enum ShapeKind: String, Codable, CaseIterable, Sendable {
+    case rectangle, roundedRectangle, ellipse, triangle, diamond, star, line, arrow
+}
+public enum ObjectKind: String, Codable, Sendable { case text, shape, image, table, chart, group }
+public enum TextAlignment: String, Codable, CaseIterable, Sendable { case left, center, right, justified }
+public enum TextFit: String, Codable, CaseIterable, Sendable { case fixed, shrink, expand, clip }
+public struct TextStyle: Codable, Equatable, Sendable {
+    public var fontName = "Helvetica Neue"
+    public var size: Double = 32
+    public var bold = false; public var italic = false; public var underline = false
+    public var alignment: TextAlignment = .left
+    public var color: RGBA? = nil
+    public var lineSpacing: Double = 4
+    public var fit: TextFit = .fixed
+    public init() {}
+}
+public struct ObjectStyle: Codable, Equatable, Sendable {
+    public var fill: RGBA? = nil
+    public var stroke = RGBA(0,0,0,0)
+    public var strokeWidth: Double = 0
+    public var cornerRadius: Double = 16
+    public init() {}
+}
+public struct ImageContent: Codable, Equatable, Sendable {
+    public var assetID: UUID
+    /// Normalized source rectangle. Original bytes remain in the asset store.
+    public var crop = Rect(0,0,1,1)
+    public var flippedHorizontally = false
+    public var fill = false
+    public init(assetID: UUID) { self.assetID = assetID }
+}
+public struct TableContent: Codable, Equatable, Sendable {
+    public var cells: [[String]]
+    public init(rows: Int = 3, columns: Int = 3) { cells = (0..<rows).map { r in (0..<columns).map { c in r == 0 ? "Column \(c+1)" : "" } } }
+}
+public enum ChartKind: String, Codable, CaseIterable, Sendable { case bar, column, line, pie, area, scatter }
+public struct ChartContent: Codable, Equatable, Sendable {
+    public var kind: ChartKind = .column
+    public var labels = ["Q1", "Q2", "Q3", "Q4"]
+    public var values: [Double] = [24, 38, 31, 52]
+    public var title = "Results"
+    public init() {}
+}
+public struct SlideObject: Codable, Equatable, Identifiable, Sendable {
+    public var id = UUID()
+    public var name: String
+    public var kind: ObjectKind
+    public var frame: Rect
+    public var rotation: Double = 0
+    public var opacity: Double = 1
+    public var hidden = false; public var locked = false
+    public var style = ObjectStyle()
+    public var text = ""
+    public var textStyle = TextStyle()
+    public var shape: ShapeKind = .rectangle
+    public var image: ImageContent? = nil
+    public var table: TableContent? = nil
+    public var chart: ChartContent? = nil
+    /// Children use slide coordinates; transforms are applied recursively as one edit.
+    public var children: [SlideObject] = []
+    public init(kind: ObjectKind, name: String, frame: Rect) { self.kind=kind; self.name=name; self.frame=frame }
+    public func duplicated(offset: Point = Point(24,24)) -> SlideObject {
+        var copy = self; copy.id = UUID(); copy.frame.x += offset.x; copy.frame.y += offset.y
+        copy.children = children.map { $0.duplicated(offset: offset) }; return copy
+    }
+    public mutating func transform(to newFrame: Rect) {
+        let old = frame
+        let sx = newFrame.width / max(old.width,0.001), sy = newFrame.height / max(old.height,0.001)
+        for i in children.indices {
+            let f = children[i].frame
+            children[i].transform(to: Rect(newFrame.x+(f.x-old.x)*sx, newFrame.y+(f.y-old.y)*sy, f.width*sx, f.height*sy))
+        }
+        frame = newFrame
+    }
+}
+public enum TransitionKind: String, Codable, CaseIterable, Sendable { case none, fade, push }
+public struct Transition: Codable, Equatable, Sendable {
+    public var kind: TransitionKind = .none
+    public var duration: Double = 0.4
+    public var advanceAfter: Double? = nil
+    public init() {}
+}
+public struct Comment: Codable, Equatable, Identifiable, Sendable {
+    public var id = UUID(); public var objectID: UUID?; public var author: String; public var text: String
+    public var resolved = false; public var replies: [String] = []
+    public init(text: String, author: String, objectID: UUID? = nil) { self.text=text; self.author=author; self.objectID=objectID }
+}
+public struct Guide: Codable, Equatable, Sendable {
+    public var vertical: Bool; public var position: Double
+    public init(vertical: Bool, position: Double) { self.vertical=vertical; self.position=position }
+}
+public struct Slide: Codable, Equatable, Identifiable, Sendable {
+    public var id = UUID(); public var title = "Untitled Slide"; public var section = ""
+    public var layout: Layout = .blank
+    public var objects: [SlideObject] = []
+    public var background: RGBA? = nil
+    public var notes = ""; public var skipped = false
+    public var transition = Transition()
+    public var guides: [Guide] = []
+    public var comments: [Comment] = []
+    public init() {}
+    public func duplicated() -> Slide {
+        var copy = self; copy.id = UUID(); copy.objects = objects.map { $0.duplicated(offset: Point()) }
+        copy.comments = []; return copy
+    }
+}
+public struct Theme: Codable, Equatable, Sendable {
+    public var name: String; public var background: RGBA; public var foreground: RGBA; public var accent: RGBA
+    public var fontName: String
+    public init(name: String, background: RGBA, foreground: RGBA, accent: RGBA, fontName: String = "Helvetica Neue") {
+        self.name=name; self.background=background; self.foreground=foreground; self.accent=accent; self.fontName=fontName
+    }
+    public static let studio = Theme(name: "Studio", background: .white, foreground: .ink, accent: .accent)
+    public static let midnight = Theme(name: "Midnight", background: RGBA(0.08,0.10,0.14), foreground: .white, accent: RGBA(0.49,0.68,1))
+    public static let paper = Theme(name: "Paper", background: RGBA(0.97,0.95,0.90), foreground: RGBA(0.19,0.20,0.16), accent: RGBA(0.32,0.43,0.29))
+    public static let all = [studio, midnight, paper]
+}
+public struct Asset: Codable, Equatable, Identifiable, Sendable {
+    public var id = UUID(); public var name: String; public var data: Data
+    public init(name: String, data: Data) { self.name=name; self.data=data }
+}
+public struct Presentation: Codable, Equatable, Sendable {
+    public var formatVersion = 1
+    public var id = UUID()
+    public var title = "Untitled"
+    public var width: Double = 1280; public var height: Double = 720
+    public var theme = Theme.studio
+    public var slides: [Slide] = [Layout.title.makeSlide()]
+    public var assets: [UUID: Asset] = [:]
+    public init() {}
+}
+public enum Layout: String, Codable, CaseIterable, Sendable {
+    case title = "Title", titleContent = "Title and Content", section = "Section", twoColumns = "Two Columns", blank = "Blank"
+    public func makeSlide() -> Slide {
+        var slide = Slide(); slide.layout = self
+        func text(_ name: String, _ value: String, _ rect: Rect, _ size: Double, _ bold: Bool = false) -> SlideObject {
+            var o = SlideObject(kind: .text,name: name,frame: rect); o.text=value; o.textStyle.size=size; o.textStyle.bold=bold; return o
+        }
+        switch self {
+        case .title:
+            slide.title = "Your next great idea"
+            slide.objects = [text("Title",slide.title,Rect(96,232,1088,150),72,true), text("Subtitle","A presentation by you",Rect(100,414,1000,72),30)]
+        case .section:
+            slide.title = "A new chapter"; slide.objects = [text("Title",slide.title,Rect(96,270,1088,180),64,true)]
+        case .titleContent, .twoColumns:
+            slide.title = "Slide title"
+            slide.objects = [text("Title",slide.title,Rect(80,56,1120,100),48,true),text("Content","Add your ideas here",Rect(80,190,self == .twoColumns ? 520 : 1120,440),30)]
+            if self == .twoColumns { slide.objects.append(text("Content","A second perspective",Rect(680,190,520,440),30)) }
+        case .blank: slide.title = "Blank Slide"
+        }
+        return slide
+    }
+}

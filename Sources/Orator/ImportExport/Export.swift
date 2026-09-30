@@ -1,0 +1,54 @@
+import AppKit
+import UniformTypeIdentifiers
+import PresentationCore
+
+extension EditorWindowController {
+    @objc func exportPDF(_ sender: Any?) {
+        canvas.finishText(); let panel=NSSavePanel(); panel.allowedContentTypes=[.pdf]; panel.nameFieldStringValue="\(presentation.displayName ?? "Presentation").pdf"
+        panel.beginSheetModal(for:window!) { [weak self] response in
+            guard response == .OK, let self=self, let url=panel.url else { return }
+            do {
+                let data=NSMutableData(); guard let consumer=CGDataConsumer(data:data) else { throw FormatError.invalid("could not create PDF") }
+                var box=CGRect(x:0,y:0,width:self.presentation.deck.width,height:self.presentation.deck.height)
+                guard let context=CGContext(consumer:consumer,mediaBox:&box,nil) else { throw FormatError.invalid("could not create PDF context") }
+                for slide in self.presentation.deck.slides {
+                    context.beginPDFPage(nil); context.saveGState(); context.translateBy(x:0,y:box.height); context.scaleBy(x:1,y:-1)
+                    NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current=NSGraphicsContext(cgContext:context,flipped:true)
+                    SlideRenderer.shared.draw(slide:slide,deck:self.presentation.deck,in:box)
+                    NSGraphicsContext.restoreGraphicsState(); context.restoreGState(); context.endPDFPage()
+                }
+                context.closePDF(); try (data as Data).write(to:url,options:.atomic)
+            } catch { self.presentation.presentError(error) }
+        }
+    }
+    @objc func exportPPTX(_ sender: Any?) {
+        canvas.finishText(); let panel=NSSavePanel(); panel.allowedContentTypes=[UTType(filenameExtension:"pptx")!]; panel.nameFieldStringValue="\(presentation.displayName ?? "Presentation").pptx"
+        panel.beginSheetModal(for:window!) { [weak self] response in
+            guard response == .OK, let self=self, let url=panel.url else { return }
+            do {
+                var deck=self.presentation.deck
+                // Rasterize charts and groups explicitly; other objects remain editable in PowerPoint.
+                var flattened=false
+                for s in deck.slides.indices {
+                    for i in deck.slides[s].objects.indices {
+                        let object=deck.slides[s].objects[i]
+                        if object.kind == .chart || object.kind == .group {
+                            let f=object.frame
+                            let image=NSImage(size:NSSize(width:f.width,height:f.height)); image.lockFocusFlipped(true)
+                            let t=NSAffineTransform(); t.translateX(by:-f.x,yBy:-f.y); t.concat(); SlideRenderer.shared.draw(object:object,deck:deck); image.unlockFocus()
+                            guard let tiff=image.tiffRepresentation, let rep=NSBitmapImageRep(data:tiff), let png=rep.representation(using:.png,properties:[:]) else { continue }
+                            let asset=Asset(name:"\(object.name).png",data:png); deck.assets[asset.id]=asset
+                            var replacement=SlideObject(kind:.image,name:object.name,frame:f); replacement.image=ImageContent(assetID:asset.id); deck.slides[s].objects[i]=replacement; flattened=true
+                        }
+                    }
+                }
+                for id in Array(deck.assets.keys) {
+                    if let asset=deck.assets[id], let image=NSImage(data:asset.data), let tiff=image.tiffRepresentation, let rep=NSBitmapImageRep(data:tiff), let png=rep.representation(using:.png,properties:[:]) { deck.assets[id]?.data=png }
+                }
+                var warnings=try PowerPoint.export(deck,to:url)
+                if flattened { warnings.append("Charts and groups were exported as images. They remain editable in your Orator document.") }
+                if !warnings.isEmpty { let alert=NSAlert(); alert.messageText="PowerPoint export report"; alert.informativeText=warnings.joined(separator:"\n"); alert.beginSheetModal(for:self.window!) }
+            } catch { self.presentation.presentError(error) }
+        }
+    }
+}

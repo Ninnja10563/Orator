@@ -1,0 +1,60 @@
+import AppKit
+import PresentationCore
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        buildMenus()
+        if CommandLine.arguments.contains("--smoke-test") {
+            do {
+                let document=PresentationDocument(); NSDocumentController.shared.addDocument(document); document.makeWindowControllers(); document.showWindows()
+                let data=try document.data(ofType:"app.orator.presentation"); _ = try PresentationFile.decode(data)
+                let image=SlideRenderer.shared.thumbnail(slide:document.deck.slides[0],deck:document.deck,size:NSSize(width:640,height:360))
+                guard image.isValid else { fatalError("Rendering failed") }
+                if let output=ProcessInfo.processInfo.environment["ORATOR_SMOKE_OUTPUT"] { try image.tiffRepresentation?.write(to:URL(fileURLWithPath:output)) }
+                print("Orator smoke test: document, editor window, serialization, and rendering passed")
+                DispatchQueue.main.asyncAfter(deadline:.now()+2) { NSApp.terminate(nil) }
+            } catch { fputs("Smoke test failed: \(error)\n",stderr); exit(1) }
+        } else if NSDocumentController.shared.documents.isEmpty { NSDocumentController.shared.newDocument(nil) }
+        NSApp.activate(ignoringOtherApps:true)
+    }
+    func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { false }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+    func buildMenus() {
+        let main=NSMenu(); NSApp.mainMenu=main
+        func menu(_ title: String) -> NSMenu { let item=NSMenuItem(title:title,action:nil,keyEquivalent:""); let submenu=NSMenu(title:title); item.submenu=submenu; main.addItem(item); return submenu }
+        func item(_ menu: NSMenu,_ title: String,_ action: Selector,_ key: String = "",_ modifiers: NSEvent.ModifierFlags = .command) { let i=menu.addItem(withTitle:title,action:action,keyEquivalent:key); i.keyEquivalentModifierMask=modifiers }
+        let app=menu("Orator"); item(app,"About Orator",#selector(NSApplication.orderFrontStandardAboutPanel(_:))); app.addItem(.separator()); item(app,"Hide Orator",#selector(NSApplication.hide(_:)),"h"); item(app,"Quit Orator",#selector(NSApplication.terminate(_:)),"q")
+        let file=menu("File"); item(file,"New",#selector(NSDocumentController.newDocument(_:)),"n"); item(file,"Open…",#selector(NSDocumentController.openDocument(_:)),"o")
+        item(file,"Import PowerPoint…",#selector(importPPTX(_:))); file.items.last?.target=self
+        file.addItem(.separator()); item(file,"Close",#selector(NSWindow.performClose(_:)),"w"); item(file,"Save",#selector(NSDocument.save(_:)),"s"); item(file,"Save As…",#selector(NSDocument.saveAs(_:)),"s",[.command,.shift]); file.addItem(.separator())
+        item(file,"Export PDF…",#selector(EditorWindowController.exportPDF(_:))); item(file,"Export PowerPoint…",#selector(EditorWindowController.exportPPTX(_:)))
+        let edit=menu("Edit"); item(edit,"Undo",Selector(("undo:")),"z"); item(edit,"Redo",Selector(("redo:")),"z",[.command,.shift]); edit.addItem(.separator())
+        for (title,selector,key) in [("Cut","cut:","x"),("Copy","copy:","c"),("Paste","paste:","v"),("Select All","selectAll:","a")] { item(edit,title,Selector(selector),key) }
+        item(edit,"Duplicate Objects",#selector(EditorWindowController.duplicateObjects(_:)),"d"); item(edit,"Delete Objects",#selector(EditorWindowController.deleteObjects(_:)))
+        let view=menu("View"); item(view,"Toggle Slide Navigator",#selector(EditorWindowController.toggleNavigator(_:))); item(view,"Toggle Inspector",#selector(EditorWindowController.toggleInspector(_:)),"i",[.command,.option]); item(view,"Toggle Speaker Notes",#selector(EditorWindowController.toggleNotes(_:))); item(view,"Fit Slide",#selector(EditorWindowController.fitSlide(_:)),"0")
+        for percent in [25,50,75,100,125,150,200,400] { item(view,"\(percent)%",#selector(EditorWindowController.setZoom(_:))); view.items.last?.tag=percent }
+        item(view,"Toggle Guides",#selector(EditorWindowController.toggleGuides(_:))); item(view,"Add Vertical Center Guide",#selector(EditorWindowController.addGuide(_:))); item(view,"Add Horizontal Center Guide",#selector(EditorWindowController.addGuide(_:))); view.items.last?.tag=1; item(view,"Clear Guides",#selector(EditorWindowController.clearGuides(_:)))
+        item(view,"Enter Full Screen",#selector(NSWindow.toggleFullScreen(_:)),"f",[.command,.control])
+        let insert=menu("Insert")
+        for (title,selector) in [("Text",#selector(EditorWindowController.insertText(_:))),("Shape",#selector(EditorWindowController.insertShape(_:))),("Image…",#selector(EditorWindowController.insertImage(_:))),("Table",#selector(EditorWindowController.insertTable(_:))),("Chart",#selector(EditorWindowController.insertChart(_:)))] { item(insert,title,selector) }
+        let slide=menu("Slide"); item(slide,"Add Slide…",#selector(EditorWindowController.addSlide(_:)),"n",[.command,.shift]); item(slide,"Duplicate Slides",#selector(EditorWindowController.duplicateSlides(_:))); item(slide,"Delete Slides",#selector(EditorWindowController.deleteSlides(_:))); item(slide,"Skip / Include Slide",#selector(EditorWindowController.skipSlide(_:)))
+        let arrange=menu("Arrange"); item(arrange,"Group",#selector(EditorWindowController.groupObjects(_:)),"g",[.command,.option]); item(arrange,"Ungroup",#selector(EditorWindowController.ungroupObjects(_:)),"g",[.command,.option,.shift]); item(arrange,"Bring to Front",#selector(EditorWindowController.bringToFront(_:))); item(arrange,"Send to Back",#selector(EditorWindowController.sendToBack(_:))); item(arrange,"Lock / Unlock Selection",#selector(EditorWindowController.toggleLock(_:))); item(arrange,"Unlock All",#selector(EditorWindowController.unlockAll(_:))); arrange.addItem(.separator())
+        for (i,title) in ["Align Left","Align Center","Align Right","Align Top","Align Middle","Align Bottom","Distribute Horizontally","Distribute Vertically"].enumerated() { item(arrange,title,#selector(EditorWindowController.alignObjects(_:))); arrange.items.last?.tag=i }
+        let present=menu("Present"); item(present,"Present from Current Slide",#selector(EditorWindowController.startPresentation(_:)),"p",[.command,.shift])
+        let window=menu("Window"); NSApp.windowsMenu=window; item(window,"Minimize",#selector(NSWindow.performMiniaturize(_:)),"m"); item(window,"Zoom",#selector(NSWindow.performZoom(_:)))
+        let help=menu("Help"); item(help,"Orator Keyboard Shortcuts",#selector(showHelp)); help.items.last?.target=self
+    }
+    @objc func showHelp() { let alert=NSAlert(); alert.messageText="Work with Orator"; alert.informativeText="Double-click text to edit. Click the canvas to finish.\n\nShift-click adds to selection. Drag empty space to select. Tab cycles objects. Arrow keys nudge; Shift nudges by 10 points. Hold Option while dragging to bypass snapping. Shift constrains resize or rotation.\n\nDouble-click a table or chart to edit its data.\n\nPresent: arrows or Space navigate, B blacks the screen, P pauses, L toggles the laser pointer, Escape ends. A second display shows the audience slide while your main display shows notes.\n\nOrator 0.1.0 — Foundation preview"; alert.runModal() }
+    @objc func importPPTX(_ sender: Any?) {
+        let panel=NSOpenPanel(); panel.allowedContentTypes=[.init(filenameExtension:"pptx")!]
+        guard panel.runModal() == .OK, let url=panel.url else { return }
+        do { let result=try PowerPoint.importDeck(from:url); let document=PresentationDocument(); document.deck=result.deck; NSDocumentController.shared.addDocument(document); document.makeWindowControllers(); document.showWindows(); document.updateChangeCount(.changeDone)
+            if !result.warnings.isEmpty { let alert=NSAlert(); alert.messageText="PowerPoint import report"; alert.informativeText=result.warnings.joined(separator:"\n"); alert.runModal() }
+        } catch { NSApp.presentError(error) }
+    }
+}
+let application=NSApplication.shared
+application.setActivationPolicy(.regular)
+let delegate=AppDelegate()
+application.delegate=delegate
+application.run()
