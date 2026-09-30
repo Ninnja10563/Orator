@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 document.deck.slides[0].objects[2].table?.cells=[["Quarter","Revenue","Growth"],["Q1","$24 million","12%"],["Q2","$38 million","18%"]]
                 document.deck.slides[0].notes="Smoke test notes"
                 editor.refresh()
+                try checkEditingInteractions(editor)
                 let data=try document.data(ofType:"app.orator.presentation"); _ = try PresentationFile.decode(data)
                 let nativeURL=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".orator")
                 try document.write(to:nativeURL,ofType:type)
