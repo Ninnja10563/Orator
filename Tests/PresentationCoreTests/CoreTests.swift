@@ -58,6 +58,16 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(result.deck.slides.count,2); XCTAssertEqual(result.deck.width,deck.width); XCTAssertEqual(result.deck.slides[0].objects[0].text,deck.slides[0].objects[0].text)
         XCTAssertEqual(result.deck.slides[0].notes,deck.slides[0].notes); XCTAssertEqual(result.deck.slides[0].objects.last?.table?.cells,table.table?.cells); XCTAssertTrue(result.deck.slides[1].skipped)
     }
+    func testIndependentPowerPointFixture() throws {
+        let url=Bundle.module.url(forResource:"independent",withExtension:"pptx",subdirectory:"Fixtures")!
+        let result=try PowerPoint.importDeck(from:url)
+        XCTAssertEqual(result.deck.slides.count,2)
+        XCTAssertEqual(result.deck.slides[0].objects[0].text,"Independent fixture — A & B < C")
+        XCTAssertEqual(result.deck.slides[0].objects[0].textStyle.size,36)
+        XCTAssertEqual(result.deck.slides[0].objects.first { $0.kind == .table }?.table?.cells,[["Region","Revenue"],["North","42"]])
+        XCTAssertEqual(result.deck.assets.count,1)
+        XCTAssertEqual(result.deck.slides[0].notes,"Independent speaker notes")
+    }
     func testLargeDeckSerialization() throws {
         var deck=Presentation(); deck.slides=(0..<500).map { _ in Layout.twoColumns.makeSlide() }
         let data=try PresentationFile.encode(deck); XCTAssertEqual(try PresentationFile.decode(data).slides.count,500)

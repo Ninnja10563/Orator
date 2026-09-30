@@ -16,6 +16,11 @@ jobs:
         run: ORATOR_ARCH="$(uname -m)" scripts/build-app.sh
       - name: Launch document editor and render a slide
         run: ORATOR_SMOKE_OUTPUT="$PWD/build/smoke.tiff" build/Orator.app/Contents/MacOS/Orator --smoke-test
+      - name: Check exported PPTX with an independent library
+        run: |
+          python3 -m venv /tmp/orator-validation
+          /tmp/orator-validation/bin/pip install python-pptx==1.0.2
+          /tmp/orator-validation/bin/python scripts/pptx-fixtures.py build/smoke.pptx
       - name: Restore arm64 distribution
         run: scripts/build-app.sh
       - name: Package
@@ -26,3 +31,5 @@ jobs:
           path: |
             build/Orator-macOS-arm64.zip
             build/smoke.tiff
+            build/workspace.png
+            build/smoke.pptx

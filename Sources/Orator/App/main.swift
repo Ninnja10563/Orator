@@ -7,10 +7,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if CommandLine.arguments.contains("--smoke-test") {
             do {
                 let document=PresentationDocument(); NSDocumentController.shared.addDocument(document); document.makeWindowControllers(); document.showWindows()
+                let editor=document.windowControllers[0] as! EditorWindowController
+                document.undoManager?.groupsByEvent=false
+                document.undoManager?.beginUndoGrouping()
+                editor.insertTable(nil)
+                document.undoManager?.endUndoGrouping()
+                guard document.deck.slides[0].objects.count == 3 else { fatalError("Insertion failed") }
+                document.undoManager?.undo()
+                guard document.deck.slides[0].objects.count == 2 else { fatalError("Undo failed") }
+                document.undoManager?.redo()
+                guard document.deck.slides[0].objects.count == 3 else { fatalError("Redo failed") }
+                document.deck.slides[0].notes="Smoke test notes"
                 let data=try document.data(ofType:"app.orator.presentation"); _ = try PresentationFile.decode(data)
                 let image=SlideRenderer.shared.thumbnail(slide:document.deck.slides[0],deck:document.deck,size:NSSize(width:640,height:360))
                 guard image.isValid else { fatalError("Rendering failed") }
-                if let output=ProcessInfo.processInfo.environment["ORATOR_SMOKE_OUTPUT"] { try image.tiffRepresentation?.write(to:URL(fileURLWithPath:output)) }
+                if let output=ProcessInfo.processInfo.environment["ORATOR_SMOKE_OUTPUT"] {
+                    let url=URL(fileURLWithPath:output)
+                    try image.tiffRepresentation?.write(to:url)
+                    _=try PowerPoint.export(document.deck,to:url.deletingLastPathComponent().appendingPathComponent("smoke.pptx"))
+                    if let view=editor.window?.contentView {
+                        view.layoutSubtreeIfNeeded(); view.display()
+                        if let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds) {
+                            view.cacheDisplay(in:view.bounds,to:bitmap)
+                            try bitmap.representation(using:.png,properties:[:])?.write(to:url.deletingLastPathComponent().appendingPathComponent("workspace.png"))
+                        }
+                    }
+                }
+                document.updateChangeCount(.changeCleared)
                 print("Orator smoke test: document, editor window, serialization, and rendering passed")
                 DispatchQueue.main.asyncAfter(deadline:.now()+2) { NSApp.terminate(nil) }
             } catch { fputs("Smoke test failed: \(error)\n",stderr); exit(1) }

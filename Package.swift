@@ -8,6 +8,6 @@ let package = Package(
     targets: [
         .target(name: "PresentationCore"),
         .executableTarget(name: "Orator", dependencies: ["PresentationCore"]),
-        .testTarget(name: "PresentationCoreTests", dependencies: ["PresentationCore"])
+        .testTarget(name: "PresentationCoreTests", dependencies: ["PresentationCore"], resources: [.copy("Fixtures")])
     ]
 )

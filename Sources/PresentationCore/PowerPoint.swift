@@ -149,7 +149,8 @@ public enum PowerPoint {
             }; return parts.joined(separator:"/")
         }
         func relations(_ source: String) throws -> [String:String] {
-            let url=URL(fileURLWithPath:source), path=url.deletingLastPathComponent().path.trimmingCharacters(in:CharacterSet(charactersIn:"/"))+"/_rels/"+url.lastPathComponent+".rels"
+            let components=source.split(separator:"/").map(String.init)
+            let path=components.dropLast().joined(separator:"/")+"/_rels/"+(components.last ?? "")+".rels"
             guard members.contains(path) else { return [:] }
             let root=try document(path); var result: [String:String]=[:]
             for rel in root.elements(forName:"Relationship") where rel.attr("TargetMode") != "External" { result[rel.attr("Id")]=try resolve(rel.attr("Target"),relativeTo:source) }; return result
