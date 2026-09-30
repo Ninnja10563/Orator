@@ -27,6 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     _=try PowerPoint.export(document.deck,to:url.deletingLastPathComponent().appendingPathComponent("smoke.pptx"))
                     if let view=editor.window?.contentView {
                         view.layoutSubtreeIfNeeded(); view.display()
+                        print("Workspace frames: root=\(view.frame), main=\(editor.split.frame), canvas=\(editor.canvas.frame), notes=\(editor.notesPane.frame)")
+                        guard editor.canvas.bounds.height >= 360, editor.canvas.bounds.width >= 400 else { fatalError("Canvas collapsed during workspace layout") }
                         if let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds) {
                             view.cacheDisplay(in:view.bounds,to:bitmap)
                             try bitmap.representation(using:.png,properties:[:])?.write(to:url.deletingLastPathComponent().appendingPathComponent("workspace.png"))

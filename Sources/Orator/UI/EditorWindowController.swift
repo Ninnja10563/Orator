@@ -33,12 +33,30 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
         window.makeFirstResponder(canvas)
     }
     required init?(coder: NSCoder) { fatalError() }
+    override func showWindow(_ sender: Any?) {
+        super.showWindow(sender)
+        window?.contentView?.layoutSubtreeIfNeeded()
+        vertical.setPosition(max(360,vertical.bounds.height-150),ofDividerAt:0)
+        split.setPosition(210,ofDividerAt:0)
+        split.setPosition(max(610,split.bounds.width-300),ofDividerAt:1)
+    }
     func buildWorkspace() {
         guard let root=window?.contentView else { return }
         vertical.isVertical=false; vertical.dividerStyle = .thin; vertical.frame=root.bounds; vertical.autoresizingMask=[.width,.height]; root.addSubview(vertical)
         split.isVertical=true; split.dividerStyle = .thin
+        split.frame=NSRect(x:0,y:0,width:root.bounds.width,height:max(400,root.bounds.height-150))
+        notesPane.frame=NSRect(x:0,y:0,width:root.bounds.width,height:150)
+        navigationPane.frame=NSRect(x:0,y:0,width:210,height:split.bounds.height)
+        canvas.frame=NSRect(x:0,y:0,width:max(400,root.bounds.width-510),height:split.bounds.height)
+        inspector.frame=NSRect(x:0,y:0,width:300,height:split.bounds.height)
         vertical.addArrangedSubview(split); vertical.addArrangedSubview(notesPane)
         split.addArrangedSubview(navigationPane); split.addArrangedSubview(canvas); split.addArrangedSubview(inspector)
+        split.heightAnchor.constraint(greaterThanOrEqualToConstant:360).isActive=true
+        notesPane.heightAnchor.constraint(greaterThanOrEqualToConstant:90).isActive=true
+        notesPane.heightAnchor.constraint(lessThanOrEqualToConstant:300).isActive=true
+        vertical.setHoldingPriority(.defaultHigh,forSubviewAt:1)
+        split.setHoldingPriority(.defaultHigh,forSubviewAt:0)
+        split.setHoldingPriority(.defaultHigh,forSubviewAt:2)
         let scroll=NSScrollView(); scroll.hasVerticalScroller=true; scroll.drawsBackground=false; scroll.translatesAutoresizingMaskIntoConstraints=false
         let heading=NSTextField(labelWithString:"SLIDES"); heading.font = .systemFont(ofSize:11,weight:.semibold); heading.textColor = .secondaryLabelColor; heading.translatesAutoresizingMaskIntoConstraints=false
         navigationPane.addSubview(heading); navigationPane.addSubview(scroll)
