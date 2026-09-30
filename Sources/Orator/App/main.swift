@@ -6,7 +6,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         buildMenus()
         if CommandLine.arguments.contains("--smoke-test") {
             do {
-                let document=PresentationDocument(); NSDocumentController.shared.addDocument(document); document.makeWindowControllers(); document.showWindows()
+                let type=NSDocumentController.shared.defaultType ?? "app.orator.presentation"
+                guard let document=try NSDocumentController.shared.makeUntitledDocument(ofType:type) as? PresentationDocument else { fatalError("Document registration failed") }
+                NSDocumentController.shared.addDocument(document); document.makeWindowControllers(); document.showWindows()
                 let editor=document.windowControllers[0] as! EditorWindowController
                 document.undoManager?.groupsByEvent=false
                 document.undoManager?.beginUndoGrouping()
@@ -26,6 +28,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 document.deck.slides[0].notes="Smoke test notes"
                 editor.refresh()
                 let data=try document.data(ofType:"app.orator.presentation"); _ = try PresentationFile.decode(data)
+                let nativeURL=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".orator")
+                try document.write(to:nativeURL,ofType:type)
+                let reopened=try PresentationDocument(contentsOf:nativeURL,ofType:type)
+                guard reopened.deck == document.deck else { fatalError("Native save/open failed") }
+                try FileManager.default.removeItem(at:nativeURL)
                 let image=SlideRenderer.shared.thumbnail(slide:document.deck.slides[0],deck:document.deck,size:NSSize(width:640,height:360))
                 guard image.isValid else { fatalError("Rendering failed") }
                 if let output=ProcessInfo.processInfo.environment["ORATOR_SMOKE_OUTPUT"] {

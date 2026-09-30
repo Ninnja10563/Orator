@@ -22,6 +22,10 @@ public enum PresentationFile {
     public static func validate(_ deck: Presentation) throws {
         guard deck.width.isFinite, deck.height.isFinite, (100...16384).contains(deck.width), (100...16384).contains(deck.height) else { throw FormatError.invalid("invalid slide dimensions") }
         guard !deck.slides.isEmpty, deck.slides.count <= 10000 else { throw FormatError.invalid("invalid slide count") }
+        guard deck.formatVersion == 1 else { throw FormatError.unsupportedVersion(deck.formatVersion) }
+        func validColor(_ color: RGBA) -> Bool { [color.red,color.green,color.blue,color.alpha].allSatisfy { $0.isFinite && (0...1).contains($0) } }
+        guard [deck.theme.background,deck.theme.foreground,deck.theme.accent].allSatisfy(validColor) else { throw FormatError.invalid("invalid theme colors") }
+        for (id,asset) in deck.assets { guard id == asset.id, asset.data.count <= 100*1024*1024 else { throw FormatError.invalid("invalid asset identifier or size") } }
         var ids=Set<UUID>()
         func unique(_ id: UUID) throws { guard ids.insert(id).inserted else { throw FormatError.invalid("duplicate identifier") } }
         func objects(_ list: [SlideObject], depth: Int) throws {
@@ -29,16 +33,31 @@ public enum PresentationFile {
             for o in list {
                 try unique(o.id)
                 guard [o.frame.x,o.frame.y,o.frame.width,o.frame.height,o.rotation,o.opacity,o.textStyle.size].allSatisfy(\.isFinite), o.frame.width > 0, o.frame.height > 0, (0...1).contains(o.opacity), (1...1000).contains(o.textStyle.size) else { throw FormatError.invalid("invalid object geometry or style") }
+                guard abs(o.frame.x) <= 1_000_000, abs(o.frame.y) <= 1_000_000, o.frame.width <= 1_000_000, o.frame.height <= 1_000_000,
+                      abs(o.rotation) <= 360_000, o.style.strokeWidth.isFinite, (0...10000).contains(o.style.strokeWidth),
+                      o.style.cornerRadius.isFinite, (0...1_000_000).contains(o.style.cornerRadius),
+                      o.textStyle.lineSpacing.isFinite, (0...10000).contains(o.textStyle.lineSpacing),
+                      validColor(o.style.stroke), o.style.fill.map(validColor) ?? true, o.textStyle.color.map(validColor) ?? true else { throw FormatError.invalid("object style is outside supported bounds") }
+                if o.kind == .image && o.image == nil { throw FormatError.invalid("image object has no asset reference") }
+                if let table=o.table {
+                    guard !table.cells.isEmpty, table.cells.count <= 1000, let columns=table.cells.first?.count, (1...100).contains(columns), table.cells.allSatisfy({ $0.count == columns }) else { throw FormatError.invalid("invalid table dimensions") }
+                }
                 if let image=o.image {
                     guard deck.assets[image.assetID] != nil else { throw FormatError.invalid("missing image asset") }
                     let c=image.crop
                     guard [c.x,c.y,c.width,c.height].allSatisfy(\.isFinite), c.x >= 0, c.y >= 0, c.width > 0, c.height > 0, c.maxX <= 1.00001, c.maxY <= 1.00001 else { throw FormatError.invalid("invalid image crop") }
                 }
-                if let chart=o.chart { guard chart.labels.count == chart.values.count, chart.values.allSatisfy(\.isFinite) else { throw FormatError.invalid("invalid chart data") } }
+                if let chart=o.chart { guard chart.labels.count == chart.values.count, chart.values.count <= 10000, chart.values.allSatisfy { $0.isFinite && abs($0) <= 1e12 } else { throw FormatError.invalid("invalid chart data") } }
                 try objects(o.children,depth:depth+1)
             }
         }
-        for slide in deck.slides { try unique(slide.id); try objects(slide.objects,depth:0) }
+        for slide in deck.slides {
+            try unique(slide.id)
+            guard slide.background.map(validColor) ?? true, slide.transition.duration.isFinite, (0...60).contains(slide.transition.duration),
+                  slide.transition.advanceAfter.map({ $0.isFinite && $0 > 0 && $0 <= 86400 }) ?? true,
+                  slide.guides.allSatisfy({ $0.position.isFinite && abs($0.position) <= 1_000_000 }) else { throw FormatError.invalid("invalid slide style or timing") }
+            try objects(slide.objects,depth:0)
+        }
     }
 }
 public struct ObjectClipboard: Codable {

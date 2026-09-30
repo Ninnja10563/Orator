@@ -81,6 +81,25 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(try store.records().first?.presentation.slides[0].notes,"")
         store.remove(session); XCTAssertTrue(try store.records().isEmpty)
     }
+    func testMalformedGeometryAndStyleAreRejectedBeforeRendering() throws {
+        var deck=Presentation(); deck.slides[0].objects[0].frame.width=1e100
+        XCTAssertThrowsError(try PresentationFile.encode(deck))
+        deck=Presentation(); deck.theme.accent=RGBA(2,0,0)
+        XCTAssertThrowsError(try PresentationFile.encode(deck))
+        deck=Presentation(); deck.slides[0].transition.advanceAfter = -1
+        XCTAssertThrowsError(try PresentationFile.encode(deck))
+    }
+    func testClipboardIncludesOnlyReferencedAssets() throws {
+        let used=Asset(name:"used",data:Data([1])), unused=Asset(name:"unused",data:Data([2]))
+        var image=SlideObject(kind:.image,name:"Photo",frame:Rect(0,0,100,100)); image.image=ImageContent(assetID:used.id)
+        var group=SlideObject(kind:.group,name:"Group",frame:image.frame); group.children=[image]
+        var slide=Slide(); slide.objects=[group]
+        let clipboard=SlideClipboard(slides:[slide],assets:[used.id:used,unused.id:unused])
+        XCTAssertEqual(Set(clipboard.assets.keys),[used.id])
+        let decoded=try JSONDecoder().decode(SlideClipboard.self,from:JSONEncoder().encode(clipboard))
+        var destination=Presentation(); destination.assets=decoded.assets; destination.slides += decoded.slides.map { $0.duplicated() }
+        XCTAssertNoThrow(try PresentationFile.validate(destination))
+    }
     func testLargeDeckSerialization() throws {
         var deck=Presentation(); deck.slides=(0..<500).map { _ in Layout.twoColumns.makeSlide() }
         let data=try PresentationFile.encode(deck); XCTAssertEqual(try PresentationFile.decode(data).slides.count,500)
