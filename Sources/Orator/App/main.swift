@@ -3,7 +3,7 @@ import PresentationCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
-        buildMenus()
+        buildMenus(); NSApp.activate(ignoringOtherApps:true)
         if CommandLine.arguments.contains("--smoke-test") {
             do {
                 let type=NSDocumentController.shared.defaultType ?? "app.orator.presentation"

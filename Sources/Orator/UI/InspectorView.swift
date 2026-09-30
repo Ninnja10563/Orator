@@ -7,6 +7,9 @@ final class InspectorView: SurfaceView {
     private var fields: [String:NSTextField]=[:]
     private let selectionLabel=NSTextField(labelWithString:"Slide")
     private var updating=false
+    private var currentSection=""
+    private var sections: [String:[NSView]]=[:]
+    private var labeledViews: [String:NSView]=[:]
     private let fill=NSColorWell(), textColor=NSColorWell()
     private let layers=NSPopUpButton()
     private let theme=NSPopUpButton(), transition=NSPopUpButton(), font=NSPopUpButton(), alignment=NSPopUpButton(), chart=NSPopUpButton(), fit=NSPopUpButton()
@@ -19,6 +22,10 @@ final class InspectorView: SurfaceView {
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing=10; stack.translatesAutoresizingMaskIntoConstraints=false; body.addSubview(stack)
         NSLayoutConstraint.activate([body.widthAnchor.constraint(equalTo:scroll.widthAnchor),stack.leadingAnchor.constraint(equalTo:body.leadingAnchor,constant:18),stack.trailingAnchor.constraint(equalTo:body.trailingAnchor,constant:-18),stack.topAnchor.constraint(equalTo:body.topAnchor,constant:18),stack.bottomAnchor.constraint(equalTo:body.bottomAnchor,constant:-22)])
         selectionLabel.font = .systemFont(ofSize:16,weight:.semibold); stack.addArrangedSubview(selectionLabel)
+        heading("LAYERS")
+        layers.target=self; layers.action=#selector(selectLayer); row("Object",layers)
+        button("Show / Hide Selection",#selector(visibility))
+        button("Bring to Front",#selector(front)); button("Send to Back",#selector(back)); button("Lock / Unlock Selection",#selector(lock)); button("Unlock All Objects",#selector(unlock))
         heading("SLIDE")
         field("Title",key:"slideTitle"); field("Section",key:"section")
         heading("PRESENTATION")
@@ -31,7 +38,7 @@ final class InspectorView: SurfaceView {
         fill.target=self; fill.action=#selector(changeFill); row("Fill",fill)
         font.addItems(withTitles:["Helvetica Neue","Avenir Next","Arial","Georgia","Menlo"]); font.target=self; font.action=#selector(changeFont); row("Font",font)
         field("Size",key:"size")
-        let traits=NSStackView(views:[bold,italic,underline]); traits.spacing=8; stack.addArrangedSubview(traits)
+        let traits=NSStackView(views:[bold,italic,underline]); traits.spacing=8; add(traits)
         for button in [bold,italic,underline] { button.target=self; button.action=#selector(changeTraits); button.font = .systemFont(ofSize:11) }
         textColor.target=self; textColor.action=#selector(changeTextColor); row("Text color",textColor)
         alignment.addItems(withTitles:TextAlignment.allCases.map(\.rawValue)); alignment.target=self; alignment.action=#selector(changeAlignment); row("Alignment",alignment)
@@ -44,23 +51,40 @@ final class InspectorView: SurfaceView {
         button("Crop Image…",#selector(cropImage))
         button("Reset Image Crop",#selector(resetCrop))
         button("Reset Theme Colors",#selector(resetColors))
-        heading("LAYERS")
-        layers.target=self; layers.action=#selector(selectLayer); row("Object",layers)
-        button("Show / Hide Selection",#selector(visibility))
-        button("Bring to Front",#selector(front)); button("Send to Back",#selector(back)); button("Lock / Unlock Selection",#selector(lock)); button("Unlock All Objects",#selector(unlock))
+
     }
     required init?(coder: NSCoder) { fatalError() }
-    func heading(_ title: String) { let label=NSTextField(labelWithString:title); label.font = .systemFont(ofSize:10,weight:.semibold); label.textColor = .secondaryLabelColor; stack.addArrangedSubview(label); stack.setCustomSpacing(6,after:label) }
+    func add(_ view: NSView) { stack.addArrangedSubview(view); sections[currentSection,default:[]].append(view) }
+    func heading(_ title: String) { currentSection=title; let label=NSTextField(labelWithString:title); label.font = .systemFont(ofSize:10,weight:.semibold); label.textColor = .secondaryLabelColor; add(label); stack.setCustomSpacing(6,after:label) }
     func row(_ title: String, _ control: NSView) {
         let label=NSTextField(labelWithString:title); label.font = .systemFont(ofSize:12); label.widthAnchor.constraint(equalToConstant:82).isActive=true
-        let row=NSStackView(views:[label,control]); row.spacing=8; row.alignment = .centerY; stack.addArrangedSubview(row); row.widthAnchor.constraint(equalTo:stack.widthAnchor).isActive=true
+        let row=NSStackView(views:[label,control]); row.spacing=8; row.alignment = .centerY; add(row); labeledViews[title]=row; row.widthAnchor.constraint(equalTo:stack.widthAnchor).isActive=true
         control.setAccessibilityLabel(title)
     }
     func field(_ title: String,key: String) { let field=NSTextField(); field.target=self; field.action=#selector(changeField(_:)); field.identifier=NSUserInterfaceItemIdentifier(key); field.font = .monospacedDigitSystemFont(ofSize:12,weight:.regular); fields[key]=field; row(title,field) }
-    func button(_ title: String,_ selector: Selector) { let button=NSButton(title:title,target:self,action:selector); button.bezelStyle = .rounded; button.controlSize = .small; stack.addArrangedSubview(button) }
+    func button(_ title: String,_ selector: Selector) { let button=NSButton(title:title,target:self,action:selector); button.bezelStyle = .rounded; button.controlSize = .small; add(button); labeledViews[title]=button }
     func refresh() {
         guard let editor=editor else { return }; updating=true; defer { updating=false }
         let objects=editor.currentSlide.objects.filter { editor.canvas.selected.contains($0.id) }, object=objects.first
+        for (name,views) in sections {
+            let visible: Bool
+            switch name {
+            case "SLIDE","PRESENTATION": visible=object == nil
+            case "ARRANGE": visible=object != nil
+            case "STYLE": visible=object.map { [.text,.shape,.table].contains($0.kind) } ?? false
+            case "CONTENT": visible=object.map { [.image,.chart,.table].contains($0.kind) } ?? false
+            default: visible=true
+            }
+            for view in views { view.isHidden = !visible }
+        }
+        for title in ["Show / Hide Selection","Bring to Front","Send to Back","Lock / Unlock Selection"] { (labeledViews[title] as? NSControl)?.isEnabled=object != nil }
+        if let o=object {
+            labeledViews["Chart type"]?.isHidden=o.kind != .chart
+            labeledViews["Edit table / chart data…"]?.isHidden = ![.chart,.table].contains(o.kind)
+            for title in ["Image: Fit / Fill","Flip Image Horizontally","Crop Image…","Reset Image Crop"] { labeledViews[title]?.isHidden=o.kind != .image }
+            labeledViews["Reset Theme Colors"]?.isHidden=o.kind == .image
+            labeledViews["Fill"]?.isHidden=o.kind != .shape
+        }
         selectionLabel.stringValue=objects.count > 1 ? "\(objects.count) objects" : object?.name ?? "Slide"
         layers.removeAllItems(); layers.addItem(withTitle:"Choose an object")
         for object in editor.currentSlide.objects.reversed() {
