@@ -227,7 +227,17 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
         let objects=Geometry.aligned(slide.objects.filter { canvas.selected.contains($0.id) && !$0.locked },command:commands[sender.tag]); let map=Dictionary(uniqueKeysWithValues:objects.map { ($0.id,$0) })
         slide.objects=slide.objects.map { map[$0.id] ?? $0 }; commit(slide,name:"Align Objects")
     }
-    @objc func fitSlide(_ sender: Any?) { canvas.finishText(); canvas.fit=true; canvas.needsDisplay=true; refresh() }
+    @objc func fitSlide(_ sender: Any?) { canvas.finishText(); canvas.fit=true; canvas.pan = .zero; canvas.needsDisplay=true; refresh() }
+    @objc func fitWidth(_ sender: Any?) {
+        canvas.finishText(); canvas.fit=false; canvas.zoom=max(0.1,(Double(canvas.bounds.width)-80)/presentation.deck.width); canvas.pan = .zero; refresh()
+    }
+    @objc func zoomSelection(_ sender: Any?) {
+        canvas.finishText()
+        guard let b=Geometry.bounds(currentSlide.objects.filter { canvas.selected.contains($0.id) }) else { return }
+        canvas.fit=false; canvas.zoom=min(4,max(0.1,min((Double(canvas.bounds.width)-80)/b.width,(Double(canvas.bounds.height)-80)/b.height)))
+        canvas.pan=NSPoint(x:(presentation.deck.width/2-b.midX)*canvas.zoom,y:(presentation.deck.height/2-b.midY)*canvas.zoom); refresh()
+    }
+    @objc func toggleRulers(_ sender: Any?) { canvas.showRulers.toggle() }
     @objc func setZoom(_ sender: NSMenuItem) { canvas.finishText(); canvas.fit=false; canvas.zoom=Double(sender.tag)/100; refresh() }
     @objc func toggleNavigator(_ sender: Any?) { navigationPane.isHidden.toggle(); split.adjustSubviews() }
     @objc func toggleInspector(_ sender: Any?) { inspector.isHidden.toggle(); split.adjustSubviews() }

@@ -67,6 +67,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         for (title,selector,key) in [("Cut","cut:","x"),("Copy","copy:","c"),("Paste","paste:","v"),("Select All","selectAll:","a")] { item(edit,title,Selector(selector),key) }
         item(edit,"Duplicate Objects",#selector(EditorWindowController.duplicateObjects(_:)),"d"); item(edit,"Delete Objects",#selector(EditorWindowController.deleteObjects(_:)))
         let view=menu("View"); item(view,"Toggle Slide Navigator",#selector(EditorWindowController.toggleNavigator(_:))); item(view,"Toggle Inspector",#selector(EditorWindowController.toggleInspector(_:)),"i",[.command,.option]); item(view,"Toggle Speaker Notes",#selector(EditorWindowController.toggleNotes(_:))); item(view,"Fit Slide",#selector(EditorWindowController.fitSlide(_:)),"0")
+        item(view,"Fit Width",#selector(EditorWindowController.fitWidth(_:)))
+        item(view,"Zoom to Selection",#selector(EditorWindowController.zoomSelection(_:)))
+        item(view,"Show / Hide Rulers",#selector(EditorWindowController.toggleRulers(_:)))
         for percent in [25,50,75,100,125,150,200,400] { item(view,"\(percent)%",#selector(EditorWindowController.setZoom(_:))); view.items.last?.tag=percent }
         item(view,"Toggle Guides",#selector(EditorWindowController.toggleGuides(_:))); item(view,"Add Vertical Center Guide",#selector(EditorWindowController.addGuide(_:))); item(view,"Add Horizontal Center Guide",#selector(EditorWindowController.addGuide(_:))); view.items.last?.tag=1; item(view,"Clear Guides",#selector(EditorWindowController.clearGuides(_:)))
         item(view,"Enter Full Screen",#selector(NSWindow.toggleFullScreen(_:)),"f",[.command,.control])

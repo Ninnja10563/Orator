@@ -13,6 +13,8 @@ final class CanvasView: NSView, NSTextViewDelegate {
     var selected=Set<UUID>() { didSet { needsDisplay=true; editor?.selectionChanged() } }
     var zoom: Double = 1 { didSet { needsDisplay=true } }
     var fit = true
+    var pan=NSPoint.zero
+    var showRulers=false { didSet { needsDisplay=true } }
     var showGuides = true
     var preview: Slide?
     private var origin=Point()
@@ -23,7 +25,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
     private var marquee: Rect?
     private var textEditor: NSTextView?
     private var editingID: UUID?
-    enum DragMode { case none, move, resize(Int), rotate, marquee }
+    enum DragMode { case none, move, resize(Int), rotate, marquee, guide(Bool) }
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
     override init(frame: NSRect) {
@@ -33,7 +35,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
     }
     required init?(coder: NSCoder) { fatalError() }
     var scale: Double { fit ? max(0.05,min((bounds.width-80)/deck.width,(bounds.height-80)/deck.height)) : zoom }
-    var slideRect: NSRect { NSRect(x:(Double(bounds.width)-deck.width*Double(scale))/2,y:(Double(bounds.height)-deck.height*Double(scale))/2,width:deck.width*scale,height:deck.height*scale) }
+    var slideRect: NSRect { NSRect(x:(Double(bounds.width)-deck.width*Double(scale))/2+Double(pan.x),y:(Double(bounds.height)-deck.height*Double(scale))/2+Double(pan.y),width:deck.width*scale,height:deck.height*scale) }
     func slidePoint(_ event: NSEvent) -> Point { let p=convert(event.locationInWindow,from:nil), r=slideRect; return Point((p.x-r.minX)/scale,(p.y-r.minY)/scale) }
     func viewRect(_ r: Rect) -> NSRect { NSRect(x:slideRect.minX+r.x*scale,y:slideRect.minY+r.y*scale,width:r.width*scale,height:r.height*scale) }
     override func draw(_ dirtyRect: NSRect) {
@@ -43,6 +45,20 @@ final class CanvasView: NSView, NSTextViewDelegate {
         let shadow=NSShadow(); shadow.shadowColor=NSColor.black.withAlphaComponent(0.12); shadow.shadowBlurRadius=8; shadow.shadowOffset=NSSize(width:0,height:-2); shadow.set()
         NSColor.white.setFill(); r.fill(); NSGraphicsContext.restoreGraphicsState()
         SlideRenderer.shared.draw(slide:slide,deck:deck,in:r,excluding:editingID)
+        if showRulers {
+            NSColor.controlBackgroundColor.setFill()
+            NSRect(x:0,y:0,width:bounds.width,height:20).fill(); NSRect(x:0,y:0,width:20,height:bounds.height).fill()
+            let step=scale < 0.5 ? 200.0 : 100.0
+            let attributes: [NSAttributedString.Key:Any]=[.font:NSFont.monospacedDigitSystemFont(ofSize:9,weight:.regular),.foregroundColor:NSColor.secondaryLabelColor]
+            for value in stride(from:0.0,through:deck.width,by:step) {
+                let x=r.minX+value*scale
+                if x >= 20 && x < bounds.width { (String(Int(value)) as NSString).draw(at:NSPoint(x:x+3,y:3),withAttributes:attributes) }
+            }
+            for value in stride(from:0.0,through:deck.height,by:step) {
+                let y=r.minY+value*scale
+                if y >= 20 && y < bounds.height { (String(Int(value)) as NSString).draw(at:NSPoint(x:1,y:y),withAttributes:attributes) }
+            }
+        }
         if showGuides {
             for guide in slide.guides+guides {
                 NSColor.systemPink.withAlphaComponent(0.8).setStroke(); let path=NSBezierPath(); path.lineWidth=1
@@ -69,6 +85,8 @@ final class CanvasView: NSView, NSTextViewDelegate {
     override func mouseDown(with event: NSEvent) {
         finishText(); window?.makeFirstResponder(self)
         let p=slidePoint(event); origin=p; original=slide
+        let location=convert(event.locationInWindow,from:nil)
+        if showRulers && (location.x < 20 || location.y < 20) { mode = .guide(location.x < 20); return }
         let candidates=slide.objects.filter { selected.contains($0.id) && !$0.locked }; originalBounds=Geometry.bounds(candidates)
         if let b=originalBounds, let index=handles(b).firstIndex(where: { $0.insetBy(dx:-4,dy:-4).contains(convert(event.locationInWindow,from:nil)) }) {
             mode=index == 8 ? .rotate : .resize(index); return
@@ -86,6 +104,8 @@ final class CanvasView: NSView, NSTextViewDelegate {
         let p=slidePoint(event), dx=p.x-origin.x, dy=p.y-origin.y
         switch mode {
         case .none: return
+        case .guide(let vertical):
+            draft.guides.append(Guide(vertical:vertical,position:vertical ? p.x : p.y)); preview=draft
         case .marquee:
             let r=Rect(min(origin.x,p.x),min(origin.y,p.y),abs(dx),abs(dy)); marquee=r
             selected=Set(draft.objects.filter { !$0.locked && !$0.hidden && r.intersects($0.frame) }.map(\.id))
@@ -144,6 +164,12 @@ final class CanvasView: NSView, NSTextViewDelegate {
             }; editor?.commit(changed,name:"Nudge Objects"); return
         }
         super.keyDown(with:event)
+    }
+    override func scrollWheel(with event: NSEvent) {
+        guard !fit else { return }
+        finishText()
+        pan.x -= event.scrollingDeltaX; pan.y -= event.scrollingDeltaY
+        needsDisplay=true
     }
     override func magnify(with event: NSEvent) { finishText(); let current=scale; fit=false; zoom=min(4,max(0.1,current*(1+event.magnification))) }
     func beginText(_ object: SlideObject) {
