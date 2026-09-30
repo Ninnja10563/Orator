@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 document.deck.slides[0].notes="Smoke test notes"
                 editor.refresh()
                 try checkEditingInteractions(editor)
+                RunLoop.current.run(until:Date().addingTimeInterval(0.3))
                 let data=try document.data(ofType:"app.orator.presentation"); _ = try PresentationFile.decode(data)
                 let nativeURL=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".orator")
                 try document.write(to:nativeURL,ofType:type)
@@ -41,13 +42,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     try image.tiffRepresentation?.write(to:url)
                     _=try PowerPoint.export(document.deck,to:url.deletingLastPathComponent().appendingPathComponent("smoke.pptx"))
                     if let view=editor.window?.contentView?.superview {
-                        view.layoutSubtreeIfNeeded(); view.display()
+                        view.layoutSubtreeIfNeeded()
+                        func redraw(_ node: NSView) { node.needsDisplay=true; for child in node.subviews { redraw(child) } }
+                        redraw(view); view.displayIfNeeded()
+                        print("Canvas rendering: objects=\(editor.canvas.slide.objects.count), scale=\(editor.canvas.scale), selected=\(editor.canvas.selected.count)")
                         print("Workspace frames: root=\(view.frame), main=\(editor.split.frame), canvas=\(editor.canvas.frame), notes=\(editor.notesPane.frame)")
                         guard editor.canvas.bounds.height >= 360, editor.canvas.bounds.width >= 400 else { fatalError("Canvas collapsed during workspace layout") }
                         if let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds) {
                             view.cacheDisplay(in:view.bounds,to:bitmap)
                             try bitmap.representation(using:.png,properties:[:])?.write(to:url.deletingLastPathComponent().appendingPathComponent("workspace.png"))
-                            editor.window?.appearance=NSAppearance(named:.darkAqua); view.display()
+                            editor.window?.appearance=NSAppearance(named:.darkAqua); RunLoop.current.run(until:Date().addingTimeInterval(0.2)); redraw(view); view.displayIfNeeded()
                             if let dark=view.bitmapImageRepForCachingDisplay(in:view.bounds) {
                                 view.cacheDisplay(in:view.bounds,to:dark)
                                 try dark.representation(using:.png,properties:[:])?.write(to:url.deletingLastPathComponent().appendingPathComponent("workspace-dark.png"))
