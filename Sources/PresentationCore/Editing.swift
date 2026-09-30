@@ -76,8 +76,8 @@ public enum Geometry {
         return result
     }
     public static func snap(_ proposed: Rect, others: [Rect], guides: [Guide], width: Double, height: Double, tolerance: Double) -> (Rect,[Guide]) {
-        let xs=[0.0,width/2,width,48,width-48]+others.flatMap { [$0.x,$0.midX,$0.maxX] }+guides.filter(\.vertical).map(\.position)
-        let ys=[0.0,height/2,height,48,height-48]+others.flatMap { [$0.y,$0.midY,$0.maxY] }+guides.filter { !$0.vertical }.map(\.position)
+        let xs: [Double]=[0.0,width/2,width,48,width-48]+others.flatMap { rect -> [Double] in [rect.x,rect.midX,rect.maxX] }+guides.filter(\.vertical).map(\.position)
+        let ys: [Double]=[0.0,height/2,height,48,height-48]+others.flatMap { rect -> [Double] in [rect.y,rect.midY,rect.maxY] }+guides.filter { !$0.vertical }.map(\.position)
         func closest(_ anchors: [Double], _ targets: [Double]) -> (Double,Double)? {
             var best: (Double,Double)?
             for a in anchors { for t in targets where abs(t-a) <= tolerance { if best == nil || abs(t-a) < abs(best!.0) { best=(t-a,t) } } }
