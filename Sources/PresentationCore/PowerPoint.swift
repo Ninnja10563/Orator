@@ -110,7 +110,18 @@ public enum PowerPoint {
     static func run(_ executable: String,_ args: [String],directory: URL? = nil) throws -> Data {
         let process=Process(); process.executableURL=URL(fileURLWithPath:executable); process.arguments=args; process.currentDirectoryURL=directory
         let output=Pipe(); process.standardOutput=output; process.standardError=FileHandle.nullDevice
-        try process.run(); let data=output.fileHandleForReading.readDataToEndOfFile(); process.waitUntilExit()
+        try process.run()
+        var data=Data()
+        while true {
+            let chunk=output.fileHandleForReading.availableData
+            if chunk.isEmpty { break }
+            guard data.count+chunk.count <= 100*1024*1024 else {
+                process.terminate(); output.fileHandleForReading.closeFile(); process.waitUntilExit()
+                throw FormatError.invalid("Office archive part exceeds the 100 MB size limit")
+            }
+            data.append(chunk)
+        }
+        process.waitUntilExit()
         guard process.terminationStatus == 0 else { throw FormatError.invalid("Office archive could not be read or written") }; return data
     }
     public static func importDeck(from archive: URL) throws -> ImportResult {

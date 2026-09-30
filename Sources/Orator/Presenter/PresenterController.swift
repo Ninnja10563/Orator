@@ -10,7 +10,7 @@ final class AudienceView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         NSColor.black.setFill(); bounds.fill(); guard !black else { return }
         let scale=min(bounds.width/deck.width,bounds.height/deck.height)
-        let r=NSRect(x:(bounds.width-deck.width*scale)/2,y:(bounds.height-deck.height*scale)/2,width:deck.width*scale,height:deck.height*scale)
+        let r=NSRect(x:(Double(bounds.width)-deck.width*Double(scale))/2,y:(Double(bounds.height)-deck.height*Double(scale))/2,width:deck.width*scale,height:deck.height*scale)
         SlideRenderer.shared.draw(slide:deck.slides[index],deck:deck,in:r)
         if laser, let p=pointer { NSColor.systemRed.setFill(); NSBezierPath(ovalIn:NSRect(x:p.x-5,y:p.y-5,width:10,height:10)).fill() }
     }

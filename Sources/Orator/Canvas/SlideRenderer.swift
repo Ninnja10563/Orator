@@ -81,6 +81,7 @@ final class SlideRenderer {
         }
     }
     func drawText(_ text: String, style: TextStyle, rect: NSRect, theme: Theme) {
+        NSGraphicsContext.saveGraphicsState(); defer { NSGraphicsContext.restoreGraphicsState() }
         rect.clip()
         var scale=1.0
         if style.fit == .shrink {

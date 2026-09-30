@@ -9,7 +9,11 @@ final class PresentationDocument: NSDocument {
     override class var autosavesDrafts: Bool { true }
     override init() { super.init(); hasUndoManager=true }
     override func makeWindowControllers() { let editor=EditorWindowController(document:self); addWindowController(editor) }
-    override func data(ofType typeName: String) throws -> Data { try PresentationFile.encode(deck) }
+    override func data(ofType typeName: String) throws -> Data {
+        var snapshot=deck
+        if let editor=windowControllers.first as? EditorWindowController, let pending=editor.canvas.pendingTextSlide, let i=snapshot.slides.firstIndex(where: { $0.id == pending.id }) { snapshot.slides[i]=pending }
+        return try PresentationFile.encode(snapshot)
+    }
     override func read(from data: Data, ofType typeName: String) throws { deck=try PresentationFile.decode(data) }
     func perform(_ edit: Edit, named name: String) {
         do {

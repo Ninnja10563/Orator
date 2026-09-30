@@ -64,7 +64,7 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     }
     let toolbarItems: [(String,String,String,Selector)] = [
         ("slide","Add Slide","plus.rectangle.on.rectangle",#selector(addSlide(_:))),
-        ("text","Text","textformat",#selector(insertText(_:))),
+        ("text","Text","textformat",#selector(addText(_:))),
         ("shape","Shape","square.on.circle",#selector(insertShape(_:))),
         ("image","Image","photo",#selector(insertImage(_:))),
         ("table","Table","tablecells",#selector(insertTable(_:))),
@@ -112,7 +112,8 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     }
     func tableViewSelectionDidChange(_ notification: Notification) {
         guard !refreshing, navigator.selectedRow >= 0 else { return }
-        canvas.finishText(); selectedSlideID=presentation.deck.slides[navigator.selectedRow].id; canvas.selected=[]; notes.string=currentSlide.notes; refresh()
+        let nextID=presentation.deck.slides[navigator.selectedRow].id
+        canvas.finishText(); selectedSlideID=nextID; canvas.selected=[]; notes.string=currentSlide.notes; refresh()
     }
     func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? {
         let item=NSPasteboardItem(); item.setString(presentation.deck.slides[row].id.uuidString,forType:slideDrag); return item
@@ -151,7 +152,7 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     }
     @objc func skipSlide(_ sender: Any?) { var slide=currentSlide; slide.skipped.toggle(); commit(slide,name:"Skip Slide") }
     func insert(_ object: SlideObject) { canvas.finishText(); var slide=currentSlide; slide.objects.append(object); commit(slide,name:"Insert \(object.name)"); canvas.selected=[object.id]; window?.makeFirstResponder(canvas) }
-    @objc func insertText(_ sender: Any?) { var o=SlideObject(kind:.text,name:"Text",frame:Rect(160,200,600,100)); o.text="Type your text"; insert(o); canvas.beginText(o) }
+    @objc func addText(_ sender: Any?) { var o=SlideObject(kind:.text,name:"Text",frame:Rect(160,200,600,100)); o.text="Type your text"; insert(o); canvas.beginText(o) }
     @objc func insertShape(_ sender: Any?) {
         let menu=NSMenu()
         for shape in ShapeKind.allCases { let item=menu.addItem(withTitle:shape.rawValue,action:#selector(addShape(_:)),keyEquivalent:""); item.target=self; item.representedObject=shape.rawValue }

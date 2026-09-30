@@ -28,7 +28,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
     }
     required init?(coder: NSCoder) { fatalError() }
     var scale: Double { fit ? max(0.05,min((bounds.width-80)/deck.width,(bounds.height-80)/deck.height)) : zoom }
-    var slideRect: NSRect { NSRect(x:(bounds.width-deck.width*scale)/2,y:(bounds.height-deck.height*scale)/2,width:deck.width*scale,height:deck.height*scale) }
+    var slideRect: NSRect { NSRect(x:(Double(bounds.width)-deck.width*Double(scale))/2,y:(Double(bounds.height)-deck.height*Double(scale))/2,width:deck.width*scale,height:deck.height*scale) }
     func slidePoint(_ event: NSEvent) -> Point { let p=convert(event.locationInWindow,from:nil), r=slideRect; return Point((p.x-r.minX)/scale,(p.y-r.minY)/scale) }
     func viewRect(_ r: Rect) -> NSRect { NSRect(x:slideRect.minX+r.x*scale,y:slideRect.minY+r.y*scale,width:r.width*scale,height:r.height*scale) }
     override func draw(_ dirtyRect: NSRect) {
@@ -153,6 +153,16 @@ final class CanvasView: NSView, NSTextViewDelegate {
         view.setAccessibilityLabel("Edit \(object.name)")
         addSubview(view); textEditor=view; window?.makeFirstResponder(view); needsDisplay=true
     }
+    var pendingTextSlide: Slide? {
+        guard let view=textEditor, let id=editingID, var changed=editor?.currentSlide, let i=changed.objects.firstIndex(where: { $0.id == id }) else { return nil }
+        changed.objects[i].text=view.string
+        if changed.objects[i].name == "Title" { changed.title=String(view.string.prefix(120)) }
+        return changed
+    }
+    func textDidChange(_ notification: Notification) {
+        // The document serializer includes the active editor, even before focus leaves it.
+        editor?.presentation.updateChangeCount(.changeDone)
+    }
     func finishText() {
         guard let view=textEditor, let id=editingID else { return }
         var changed=editor?.currentSlide ?? Slide()
@@ -168,7 +178,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
         textEditor=nil; editingID=nil; view.removeFromSuperview(); editor?.commit(changed,name:"Edit Text"); needsDisplay=true
     }
     override func resignFirstResponder() -> Bool { true }
-    @objc func selectAll(_ sender: Any?) { selected=Set(slide.objects.filter { !$0.locked && !$0.hidden }.map(\.id)) }
+    override func selectAll(_ sender: Any?) { selected=Set(slide.objects.filter { !$0.locked && !$0.hidden }.map(\.id)) }
     @objc func copy(_ sender: Any?) { editor?.copyObjects(sender) }
     @objc func cut(_ sender: Any?) { editor?.copyObjects(sender); editor?.deleteObjects(sender) }
     @objc func paste(_ sender: Any?) { editor?.pasteObjects(sender) }
