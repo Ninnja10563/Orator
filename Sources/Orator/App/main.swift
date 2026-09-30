@@ -37,8 +37,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 print("Orator smoke test: document, editor window, serialization, and rendering passed")
                 DispatchQueue.main.asyncAfter(deadline:.now()+2) { NSApp.terminate(nil) }
             } catch { fputs("Smoke test failed: \(error)\n",stderr); exit(1) }
-        } else if NSDocumentController.shared.documents.isEmpty { NSDocumentController.shared.newDocument(nil) }
+        } else {
+            restoreRecoveryCopies()
+            if NSDocumentController.shared.documents.isEmpty { NSDocumentController.shared.newDocument(nil) }
+        }
         NSApp.activate(ignoringOtherApps:true)
+    }
+    func restoreRecoveryCopies() {
+        guard let records=try? PresentationDocument.recoveryStore.records() else { return }
+        for record in records {
+            let document=PresentationDocument(); document.deck=record.presentation
+            document.deck.title="Recovered — "+(record.originalPath.map { URL(fileURLWithPath:$0).deletingPathExtension().lastPathComponent } ?? record.presentation.title)
+            document.recoverySession=record.sessionID
+            NSDocumentController.shared.addDocument(document); document.makeWindowControllers(); document.showWindows(); document.updateChangeCount(.changeDone)
+        }
     }
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { false }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }

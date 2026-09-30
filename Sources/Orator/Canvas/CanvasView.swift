@@ -1,6 +1,11 @@
 import AppKit
 import PresentationCore
 
+final class InlineTextView: NSTextView {
+    private let typingUndo=UndoManager()
+    override var undoManager: UndoManager? { typingUndo }
+}
+
 final class CanvasView: NSView, NSTextViewDelegate {
     weak var editor: EditorWindowController?
     var deck: Presentation { editor?.presentation.deck ?? Presentation() }
@@ -144,7 +149,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
     func beginText(_ object: SlideObject) {
         guard !object.locked else { return }
         editingID=object.id
-        let view=NSTextView(frame:viewRect(object.frame)); view.isRichText=false; view.drawsBackground=true; view.backgroundColor=(slide.background ?? deck.theme.background).nsColor
+        let view=InlineTextView(frame:viewRect(object.frame)); view.isRichText=false; view.drawsBackground=true; view.backgroundColor=(slide.background ?? deck.theme.background).nsColor
         view.textContainerInset=NSSize(width:0,height:0); view.textContainer?.lineFragmentPadding=0
         view.string=object.text; view.font=NSFontManager.shared.convert(object.textStyle.font,toSize:object.textStyle.size*scale)
         view.textColor=(object.textStyle.color ?? deck.theme.foreground).nsColor
@@ -162,6 +167,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
     func textDidChange(_ notification: Notification) {
         // The document serializer includes the active editor, even before focus leaves it.
         editor?.presentation.updateChangeCount(.changeDone)
+        editor?.presentation.scheduleRecovery()
     }
     func finishText() {
         guard let view=textEditor, let id=editingID else { return }

@@ -26,6 +26,7 @@ jobs:
       - name: Package
         run: ditto -c -k --sequesterRsrc --keepParent build/Orator.app build/Orator-macOS-arm64.zip
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: Orator-macOS-arm64
           path: |

@@ -68,6 +68,19 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(result.deck.assets.count,1)
         XCTAssertEqual(result.deck.slides[0].notes,"Independent speaker notes")
     }
+    func testRecoveryFallsBackWithoutTouchingOriginal() throws {
+        let directory=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at:directory) }
+        let store=RecoveryStore(directory:directory), session=UUID()
+        var deck=Presentation()
+        try store.write(RecoveryRecord(sessionID:session,originalPath:"/not/written/original.orator",presentation:deck))
+        deck.slides[0].notes="Second version"
+        try store.write(RecoveryRecord(sessionID:session,originalPath:"/not/written/original.orator",presentation:deck))
+        XCTAssertEqual(try store.records().first?.presentation.slides[0].notes,"Second version")
+        try Data("interrupted write".utf8).write(to:directory.appendingPathComponent(session.uuidString+".recovery"))
+        XCTAssertEqual(try store.records().first?.presentation.slides[0].notes,"")
+        store.remove(session); XCTAssertTrue(try store.records().isEmpty)
+    }
     func testLargeDeckSerialization() throws {
         var deck=Presentation(); deck.slides=(0..<500).map { _ in Layout.twoColumns.makeSlide() }
         let data=try PresentationFile.encode(deck); XCTAssertEqual(try PresentationFile.decode(data).slides.count,500)
