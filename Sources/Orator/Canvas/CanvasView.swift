@@ -1,6 +1,11 @@
 import AppKit
 import PresentationCore
 
+final class AccessibleSlideObject: NSAccessibilityElement {
+    var onPress: (() -> Void)?
+    override func accessibilityPerformPress() -> Bool { onPress?(); return onPress != nil }
+}
+
 final class InlineTextView: NSTextView {
     private let typingUndo=UndoManager()
     override var undoManager: UndoManager? { typingUndo }
@@ -224,7 +229,8 @@ final class CanvasView: NSView, NSTextViewDelegate {
     }
     override func accessibilityChildren() -> [Any]? {
         slide.objects.filter { !$0.hidden }.map { object in
-            let element=NSAccessibilityElement(); element.setAccessibilityRole(.button)
+            let element=AccessibleSlideObject(); element.setAccessibilityRole(.button)
+            element.onPress = { [weak self] in self?.selected=[object.id]; self?.window?.makeFirstResponder(self) }
             element.setAccessibilityLabel(object.name+(object.text.isEmpty ? "" : ": "+object.text)); element.setAccessibilityParent(self)
             if let window=window { element.setAccessibilityFrame(window.convertToScreen(convert(viewRect(object.frame),to:nil))) }
             element.setAccessibilityValue(selected.contains(object.id) ? "Selected" : "")

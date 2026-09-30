@@ -15,8 +15,8 @@ The original repository contained only the MIT license, one initial commit, no t
 
 ## Next milestones, in order
 
-1. **Reliability and accessibility:** interactive macOS QA, VoiceOver actions for each canvas object, inspector mixed values, unbounded zoom panning, large-deck background thumbnail scheduling, text editing transaction coalescing, recovery fault injection, UI automation.
-2. **Document depth:** attributed text runs, paragraph/list editing, masters and inherited placeholders, section navigator, slide clipboard, layer list, nested group isolation, connectors, rulers and draggable guides.
+1. **Reliability and accessibility:** interactive macOS QA, VoiceOver testing, inspector mixed values, large-deck background thumbnail scheduling, recovery fault injection, UI automation.
+2. **Document depth:** attributed text runs, paragraph/list editing, masters and inherited placeholders, section collapsing, nested group isolation, connectors and editable guide properties.
 3. **Content tools:** visual image crop mode, masks, Vision processing service, direct table cell editing and merges, full chart series/axes editor, AVFoundation audio/video.
 4. **Motion and presentation:** animation data/engine/timeline, object identity interpolation (working name: Continuity), motion paths, presenter jump/rehearsal/ink tools.
 5. **Interoperability:** OOXML schema validation and PowerPoint/Keynote fixture corpus; master/theme inheritance, mixed text runs, media, native charts and transition fidelity. Optional Google Slides exchange through PPTX, without a service dependency.

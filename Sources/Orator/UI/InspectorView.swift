@@ -36,7 +36,7 @@ final class InspectorView: SurfaceView {
         for (title,key) in [("Name","name"),("X","x"),("Y","y"),("Width","width"),("Height","height"),("Rotation","rotation"),("Opacity %","opacity")] { field(title,key:key) }
         heading("STYLE")
         fill.target=self; fill.action=#selector(changeFill); row("Fill",fill)
-        font.addItems(withTitles:["Helvetica Neue","Avenir Next","Arial","Georgia","Menlo"]); font.target=self; font.action=#selector(changeFont); row("Font",font)
+        font.addItems(withTitles:NSFontManager.shared.availableFontFamilies.sorted()); font.target=self; font.action=#selector(changeFont); row("Font",font)
         field("Size",key:"size")
         let traits=NSStackView(views:[bold,italic,underline]); traits.spacing=8; add(traits)
         for button in [bold,italic,underline] { button.target=self; button.action=#selector(changeTraits); button.font = .systemFont(ofSize:11) }
@@ -115,16 +115,16 @@ final class InspectorView: SurfaceView {
         guard let value=Double(sender.stringValue), value.isFinite else { refresh(); return }
         if key == "duration" || key == "advance" {
             var slide=editor.currentSlide
-            if key == "duration" { slide.transition.duration=min(10,max(0,value)) } else { slide.transition.advanceAfter=value > 0 ? max(0.2,value) : nil }
+            if key == "duration" { slide.transition.duration=min(10,max(0,value)) } else { slide.transition.advanceAfter=value > 0 ? min(86400,max(0.2,value)) : nil }
             editor.commit(slide,name:"Change Transition"); return
         }
         editor.mutateSelection("Format Object") { o in
             var f=o.frame
             switch key {
-            case "x":f.x=value
-            case "y":f.y=value
-            case "width":f.width=max(1,value)
-            case "height":f.height=max(1,value)
+            case "x":f.x=min(1_000_000,max(-1_000_000,value))
+            case "y":f.y=min(1_000_000,max(-1_000_000,value))
+            case "width":f.width=min(1_000_000,max(1,value))
+            case "height":f.height=min(1_000_000,max(1,value))
             case "rotation":o.rotation=value.truncatingRemainder(dividingBy:360)
             case "opacity":o.opacity=min(1,max(0,value/100))
             case "size":o.textStyle.size=min(1000,max(1,value))

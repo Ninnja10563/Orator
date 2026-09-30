@@ -14,11 +14,26 @@ final class AudienceView: NSView {
         SlideRenderer.shared.draw(slide:deck.slides[index],deck:deck,in:r)
         if laser, let p=pointer { NSColor.systemRed.setFill(); NSBezierPath(ovalIn:NSRect(x:p.x-5,y:p.y-5,width:10,height:10)).fill() }
     }
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        for area in trackingAreas { removeTrackingArea(area) }
+        addTrackingArea(NSTrackingArea(rect:.zero,options:[.mouseMoved,.activeAlways,.inVisibleRect],owner:self,userInfo:nil))
+    }
     override func keyDown(with event: NSEvent) { onKey?(event.keyCode,event.charactersIgnoringModifiers ?? "") }
     override func mouseDown(with event: NSEvent) { onKey?(124,"") }
     override func mouseMoved(with event: NSEvent) { pointer=convert(event.locationInWindow,from:nil); if laser { needsDisplay=true } }
 }
 final class AudienceWindow: NSWindow { override var canBecomeKey: Bool { true }; override var canBecomeMain: Bool { true } }
+final class PresenterWindow: NSWindow {
+    var onKey: ((UInt16,String) -> Void)?
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown, !event.modifierFlags.contains(.command),
+           [53,123,124,125,126,49,36].contains(event.keyCode) || (event.type == .keyDown && ["b","p","l"].contains(event.charactersIgnoringModifiers?.lowercased() ?? "")) {
+            onKey?(event.keyCode,event.charactersIgnoringModifiers ?? ""); return
+        }
+        super.sendEvent(event)
+    }
+}
 final class PresenterController: NSObject, NSWindowDelegate {
     let deck: Presentation
     var index: Int
@@ -44,7 +59,8 @@ final class PresenterController: NSObject, NSWindowDelegate {
     }
     func makeConsole() {
         guard let screen=NSScreen.screens.first else { return }
-        let window=NSWindow(contentRect:NSRect(x:screen.visibleFrame.minX+40,y:screen.visibleFrame.minY+40,width:1000,height:700),styleMask:[.titled,.closable,.resizable],backing:.buffered,defer:false)
+        let window=PresenterWindow(contentRect:NSRect(x:screen.visibleFrame.minX+40,y:screen.visibleFrame.minY+40,width:1000,height:700),styleMask:[.titled,.closable,.resizable],backing:.buffered,defer:false)
+        window.onKey = { [weak self] code,characters in self?.key(code,characters) }
         window.title="Orator — Presenter View"; window.delegate=self; window.isReleasedWhenClosed=false
         let stack=NSStackView(); stack.orientation = .vertical; stack.spacing=16; stack.edgeInsets=NSEdgeInsets(top:20,left:20,bottom:20,right:20); stack.frame=window.contentView!.bounds; stack.autoresizingMask=[.width,.height]; window.contentView=stack
         let images=NSStackView(views:[currentImage,nextImage]); images.distribution = .fillEqually
