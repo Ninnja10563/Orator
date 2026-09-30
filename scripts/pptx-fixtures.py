@@ -50,7 +50,16 @@ def verify(path):
         for rel in part.rels.values():
             if not rel.is_external:
                 assert rel.target_part is not None
-    print('Independent python-pptx validation passed:', path)
+    for name in ['workspace.png', 'workspace-dark.png']:
+        capture = Path(path).parent / name
+        if capture.exists():
+            image = Image.open(capture).convert('RGB')
+            # The CI fixture has a large blue table header on the main canvas.
+            # A thumbnail alone must not satisfy the visual-content check.
+            blue_pixels = sum(b > 100 and b > r * 1.3 and b > g * 1.2
+                              for r, g, b in image.getdata())
+            assert blue_pixels > 10000, f'{name}: slide canvas content is missing'
+    print('Independent PPTX and workspace-content validation passed:', path)
 
 
 if __name__ == '__main__':
