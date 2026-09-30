@@ -32,6 +32,12 @@ PPTX exports editable text, shapes, tables, pictures and speaker notes. The app 
 
 Rich text, masters, animation timelines, audio/video, advanced table operations, visual crop handles, real-time collaboration and full crash-recovery fault-injection verification remain planned. Large-deck performance and accessibility require interactive macOS acceptance testing. Single-display presentation shows the audience view; presenter notes require a second display.
 
+## Verification
+
+The macOS workflow builds the arm64 app, runs model/geometry/OOXML/recovery tests (including a 500-slide file), launches the bundled app through its document registration, saves and reopens a native document, and exercises canvas drag/undo, inline text saving, panel visibility and presentation controls. Exported PPTX is opened independently with python-pptx. Light/dark workspace captures and the app archive are CI artifacts.
+
+This does not replace hands-on macOS, multiple-display, VoiceOver, or Microsoft PowerPoint acceptance testing.
+
 ## Editing shortcuts
 
 | Action | Control |

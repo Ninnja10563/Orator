@@ -54,12 +54,17 @@ public enum PowerPoint {
                 let nv="<p:cNvPr id=\"\(id)\" name=\"\(xml(o.name))\"/>"
                 if o.opacity < 1 { warnings.insert("Object-level opacity is not retained in PowerPoint export.") }
                 if o.kind == .image, let image=o.image, let asset=deck.assets[image.assetID] {
-                    let ext=asset.data.starts(with:[0x89,0x50,0x4e,0x47]) ? "png" : asset.data.starts(with:[0xff,0xd8]) ? "jpg" : "tiff"
+                    let ext: String
+                    if asset.data.starts(with:[0x89,0x50,0x4e,0x47]) { ext="png" }
+                    else if asset.data.starts(with:[0xff,0xd8]) { ext="jpg" }
+                    else if asset.data.starts(with:[0x49,0x49,0x2a,0]) || asset.data.starts(with:[0x4d,0x4d,0,0x2a]) { ext="tiff" }
+                    else { throw FormatError.invalid("convert unsupported image assets to PNG before PowerPoint export") }
                     let filename="image\(n)_\(id).\(ext)", path="ppt/media/\(filename)"
                     let url=root.appendingPathComponent(path); try FileManager.default.createDirectory(at:url.deletingLastPathComponent(),withIntermediateDirectories:true); try asset.data.write(to:url)
                     let rid="rIdImage\(id)"; rels += relationship(rid,"image","../media/\(filename)")
                     let c=image.crop
-                    return "<p:pic><p:nvPicPr>\(nv)<p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed=\"\(rid)\"/><a:srcRect l=\"\(Int(c.x*100000))\" t=\"\(Int(c.y*100000))\" r=\"\(Int((1-c.maxX)*100000))\" b=\"\(Int((1-c.maxY)*100000))\"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>\(xfrm(o))<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
+                    let imageTransform=xfrm(o).replacingOccurrences(of:"<a:xfrm ",with:"<a:xfrm flipH=\"\(image.flippedHorizontally ? 1 : 0)\" ")
+                    return "<p:pic><p:nvPicPr>\(nv)<p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed=\"\(rid)\"/><a:srcRect l=\"\(Int(c.x*100000))\" t=\"\(Int(c.y*100000))\" r=\"\(Int((1-c.maxX)*100000))\" b=\"\(Int((1-c.maxY)*100000))\"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>\(imageTransform)<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
                 }
                 if o.kind == .table, let table=o.table, let columns=table.cells.first?.count, columns > 0 {
                     let grid=(0..<columns).map { _ in "<a:gridCol w=\"\(emu(o.frame.width/Double(columns)))\"/>" }.joined()
@@ -192,7 +197,7 @@ public enum PowerPoint {
                     guard let blip=node.first("blip"), let target=links[blip.attr("r:embed")] else { warnings.insert("An externally linked image was omitted."); continue }
                     let asset=Asset(name:URL(fileURLWithPath:target).lastPathComponent,data:try read(target)); deck.assets[asset.id]=asset; object.kind = .image; object.image=ImageContent(assetID:asset.id)
                     if let crop=node.first("srcRect") { let l=crop.number("l")/100000,t=crop.number("t")/100000; object.image?.crop=Rect(l,t,1-l-crop.number("r")/100000,1-t-crop.number("b")/100000) }
-                    object.image?.fill=true
+                    object.image?.fill=true; object.image?.flippedHorizontally=transform?.attr("flipH") == "1"
                 }
                 if node.localName == "graphicFrame" {
                     guard let table=node.first("tbl") else { warnings.insert("A chart or unsupported graphic was omitted."); continue }

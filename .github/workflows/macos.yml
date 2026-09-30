@@ -33,4 +33,5 @@ jobs:
             build/Orator-macOS-arm64.zip
             build/smoke.tiff
             build/workspace.png
+            build/workspace-dark.png
             build/smoke.pptx

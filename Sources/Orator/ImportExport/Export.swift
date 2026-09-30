@@ -32,6 +32,19 @@ extension EditorWindowController {
                 for s in deck.slides.indices {
                     for i in deck.slides[s].objects.indices {
                         let object=deck.slides[s].objects[i]
+                        if object.kind == .image, var content=object.image, let source=SlideRenderer.shared.image(content.assetID,in:deck) {
+                            let crop=content.crop, sourceWidth=source.size.width*crop.width, sourceHeight=source.size.height*crop.height
+                            let f=object.frame
+                            if content.fill {
+                                let ratio=max(f.width/sourceWidth,f.height/sourceHeight)
+                                let width=f.width/ratio/source.size.width, height=f.height/ratio/source.size.height
+                                content.crop=Rect(crop.midX-width/2,crop.midY-height/2,width,height)
+                                deck.slides[s].objects[i].image=content
+                            } else {
+                                let ratio=min(f.width/sourceWidth,f.height/sourceHeight)
+                                deck.slides[s].objects[i].frame=Rect(f.midX-sourceWidth*ratio/2,f.midY-sourceHeight*ratio/2,sourceWidth*ratio,sourceHeight*ratio)
+                            }
+                        }
                         if object.kind == .chart || object.kind == .group {
                             let f=object.frame
                             let image=NSImage(size:NSSize(width:f.width,height:f.height)); image.lockFocusFlipped(true)

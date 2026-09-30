@@ -47,6 +47,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         if let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds) {
                             view.cacheDisplay(in:view.bounds,to:bitmap)
                             try bitmap.representation(using:.png,properties:[:])?.write(to:url.deletingLastPathComponent().appendingPathComponent("workspace.png"))
+                            editor.window?.appearance=NSAppearance(named:.darkAqua); view.display()
+                            if let dark=view.bitmapImageRepForCachingDisplay(in:view.bounds) {
+                                view.cacheDisplay(in:view.bounds,to:dark)
+                                try dark.representation(using:.png,properties:[:])?.write(to:url.deletingLastPathComponent().appendingPathComponent("workspace-dark.png"))
+                            }
+                            editor.window?.appearance=nil
                         }
                     }
                 }

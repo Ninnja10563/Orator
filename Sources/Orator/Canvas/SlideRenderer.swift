@@ -37,11 +37,11 @@ final class SlideRenderer {
         (slide.background ?? deck.theme.background).nsColor.setFill(); NSRect(x:0,y:0,width:deck.width,height:deck.height).fill()
         for object in slide.objects where !object.hidden && object.id != excluding { draw(object:object,deck:deck) }
     }
-    func draw(object o: SlideObject, deck: Presentation) {
+    func draw(object o: SlideObject, deck: Presentation, inheritedOpacity: Double = 1) {
         guard !o.hidden else { return }
         NSGraphicsContext.saveGraphicsState(); defer { NSGraphicsContext.restoreGraphicsState() }
         guard let context=NSGraphicsContext.current?.cgContext else { return }
-        context.setAlpha(o.opacity)
+        context.setAlpha(o.opacity*inheritedOpacity)
         let r=o.frame.nsRect
         let transform=NSAffineTransform(); transform.translateX(by:r.midX,yBy:r.midY); transform.rotate(byDegrees:o.rotation); transform.translateX(by:-r.midX,yBy:-r.midY); transform.concat()
         switch o.kind {
@@ -73,11 +73,11 @@ final class SlideRenderer {
                 let cell=NSRect(x:r.minX+Double(col)*w,y:r.minY+Double(row)*h,width:w,height:h)
                 (row == 0 ? deck.theme.accent : deck.theme.background).nsColor.setFill(); cell.fill()
                 deck.theme.foreground.nsColor.withAlphaComponent(0.18).setStroke(); let p=NSBezierPath(rect:cell); p.lineWidth=1; p.stroke()
-                var style=o.textStyle; style.size=min(style.size,24); style.bold=row == 0; if row == 0 { style.color = .white }
+                var style=o.textStyle; style.size=min(style.size,24); style.bold=row == 0; if row == 0 { let c=deck.theme.accent; style.color = c.red*0.2126+c.green*0.7152+c.blue*0.0722 > 0.6 ? .ink : .white }
                 drawText(table.cells[row][col],style:style,rect:cell.insetBy(dx:12,dy:8),theme:deck.theme)
             } }
         case .chart: if let chart=o.chart { drawChart(chart,object:o,deck:deck) }
-        case .group: for child in o.children { draw(object:child,deck:deck) }
+        case .group: for child in o.children { draw(object:child,deck:deck,inheritedOpacity:inheritedOpacity*o.opacity) }
         }
     }
     func drawText(_ text: String, style: TextStyle, rect: NSRect, theme: Theme) {
