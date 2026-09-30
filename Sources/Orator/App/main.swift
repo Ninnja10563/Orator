@@ -3,6 +3,7 @@ import PresentationCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if CommandLine.arguments.contains("--dark") { NSApp.appearance=NSAppearance(named:.darkAqua) }
         buildMenus(); NSApp.activate(ignoringOtherApps:true)
         if CommandLine.arguments.contains("--smoke-test") {
             do {
@@ -50,13 +51,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         guard editor.canvas.bounds.height >= 360, editor.canvas.bounds.width >= 400 else { fatalError("Canvas collapsed during workspace layout") }
                         if let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds) {
                             view.cacheDisplay(in:view.bounds,to:bitmap)
-                            try bitmap.representation(using:.png,properties:[:])?.write(to:url.deletingLastPathComponent().appendingPathComponent("workspace.png"))
-                            editor.window?.appearance=NSAppearance(named:.darkAqua); RunLoop.current.run(until:Date().addingTimeInterval(0.2)); redraw(view); view.displayIfNeeded()
-                            if let dark=view.bitmapImageRepForCachingDisplay(in:view.bounds) {
-                                view.cacheDisplay(in:view.bounds,to:dark)
-                                try dark.representation(using:.png,properties:[:])?.write(to:url.deletingLastPathComponent().appendingPathComponent("workspace-dark.png"))
-                            }
-                            editor.window?.appearance=nil
+                            let screenshotName=CommandLine.arguments.contains("--dark") ? "workspace-dark.png" : "workspace.png"
+                            try bitmap.representation(using:.png,properties:[:])?.write(to:url.deletingLastPathComponent().appendingPathComponent(screenshotName))
                         }
                     }
                 }
