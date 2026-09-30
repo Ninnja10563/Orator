@@ -17,7 +17,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard document.deck.slides[0].objects.count == 2 else { fatalError("Undo failed") }
                 document.undoManager?.redo()
                 guard document.deck.slides[0].objects.count == 3 else { fatalError("Redo failed") }
+                document.deck.slides[0].objects[0].frame=Rect(80,64,1120,100)
+                document.deck.slides[0].objects[0].textStyle.size=56
+                document.deck.slides[0].objects[1].frame=Rect(80,600,1120,64)
+                document.deck.slides[0].objects[1].text="A clear view of the quarter ahead."
+                document.deck.slides[0].objects[2].frame=Rect(80,210,1120,320)
+                document.deck.slides[0].objects[2].table?.cells=[["Quarter","Revenue","Growth"],["Q1","$24 million","12%"],["Q2","$38 million","18%"]]
                 document.deck.slides[0].notes="Smoke test notes"
+                editor.refresh()
                 let data=try document.data(ofType:"app.orator.presentation"); _ = try PresentationFile.decode(data)
                 let image=SlideRenderer.shared.thumbnail(slide:document.deck.slides[0],deck:document.deck,size:NSSize(width:640,height:360))
                 guard image.isValid else { fatalError("Rendering failed") }
@@ -25,7 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     let url=URL(fileURLWithPath:output)
                     try image.tiffRepresentation?.write(to:url)
                     _=try PowerPoint.export(document.deck,to:url.deletingLastPathComponent().appendingPathComponent("smoke.pptx"))
-                    if let view=editor.window?.contentView {
+                    if let view=editor.window?.contentView?.superview {
                         view.layoutSubtreeIfNeeded(); view.display()
                         print("Workspace frames: root=\(view.frame), main=\(editor.split.frame), canvas=\(editor.canvas.frame), notes=\(editor.notesPane.frame)")
                         guard editor.canvas.bounds.height >= 360, editor.canvas.bounds.width >= 400 else { fatalError("Canvas collapsed during workspace layout") }
@@ -78,6 +85,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let insert=menu("Insert")
         for (title,selector) in [("Text",#selector(EditorWindowController.addText(_:))),("Shape",#selector(EditorWindowController.insertShape(_:))),("Image…",#selector(EditorWindowController.insertImage(_:))),("Table",#selector(EditorWindowController.insertTable(_:))),("Chart",#selector(EditorWindowController.insertChart(_:)))] { item(insert,title,selector) }
         let slide=menu("Slide"); item(slide,"Add Slide…",#selector(EditorWindowController.addSlide(_:)),"n",[.command,.shift]); item(slide,"Duplicate Slides",#selector(EditorWindowController.duplicateSlides(_:))); item(slide,"Delete Slides",#selector(EditorWindowController.deleteSlides(_:))); item(slide,"Skip / Include Slide",#selector(EditorWindowController.skipSlide(_:)))
+        item(slide,"Copy Slides",#selector(EditorWindowController.copySlides(_:)))
+        item(slide,"Paste Slides",#selector(EditorWindowController.pasteSlides(_:)))
         let arrange=menu("Arrange"); item(arrange,"Group",#selector(EditorWindowController.groupObjects(_:)),"g",[.command,.option]); item(arrange,"Ungroup",#selector(EditorWindowController.ungroupObjects(_:)),"g",[.command,.option,.shift]); item(arrange,"Bring to Front",#selector(EditorWindowController.bringToFront(_:))); item(arrange,"Send to Back",#selector(EditorWindowController.sendToBack(_:))); item(arrange,"Lock / Unlock Selection",#selector(EditorWindowController.toggleLock(_:))); item(arrange,"Unlock All",#selector(EditorWindowController.unlockAll(_:))); arrange.addItem(.separator())
         for (i,title) in ["Align Left","Align Center","Align Right","Align Top","Align Middle","Align Bottom","Distribute Horizontally","Distribute Vertically"].enumerated() { item(arrange,title,#selector(EditorWindowController.alignObjects(_:))); arrange.items.last?.tag=i }
         let present=menu("Present"); item(present,"Present from Current Slide",#selector(EditorWindowController.startPresentation(_:)),"p",[.command,.shift])

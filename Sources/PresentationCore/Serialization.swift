@@ -49,3 +49,12 @@ public struct ObjectClipboard: Codable {
         let used=Set(assetIDs(objects)); self.assets=assets.filter { used.contains($0.key) }
     }
 }
+
+public struct SlideClipboard: Codable {
+    public var slides: [Slide]
+    public var assets: [UUID: Asset]
+    public init(slides: [Slide], assets: [UUID: Asset]) {
+        self.slides=slides
+        self.assets=ObjectClipboard(objects:slides.flatMap(\.objects),assets:assets).assets
+    }
+}

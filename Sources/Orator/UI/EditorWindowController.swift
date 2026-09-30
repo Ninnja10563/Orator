@@ -5,20 +5,21 @@ import PresentationCore
 final class EditorWindowController: NSWindowController, NSTableViewDataSource, NSTableViewDelegate, NSToolbarDelegate, NSTextViewDelegate {
     let presentation: PresentationDocument
     let canvas=CanvasView(frame:.zero)
-    let navigator=NSTableView()
+    let navigator=SlideTableView()
     let notes=NSTextView()
     let inspector=InspectorView()
     let status=NSTextField(labelWithString:"")
     let split=NSSplitView()
     let vertical=NSSplitView()
-    let navigationPane=NSView()
-    let notesPane=NSView()
+    let navigationPane=SurfaceView()
+    let notesPane=SurfaceView()
     var selectedSlideID: UUID
     var currentSlide: Slide { presentation.deck.slides.first { $0.id == selectedSlideID } ?? presentation.deck.slides[0] }
     var presenter: PresenterController?
     private var refreshing=false
     private var thumbnails: [UUID:(Slide,Theme,NSImage)]=[:]
     private let slideDrag=NSPasteboard.PasteboardType("app.orator.slide-indices")
+    static let slidePasteboard=NSPasteboard.PasteboardType("app.orator.slides")
     static let objectPasteboard=NSPasteboard.PasteboardType("app.orator.objects")
 
     init(document: PresentationDocument) {
@@ -26,7 +27,7 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
         let window=NSWindow(contentRect:NSRect(x:0,y:0,width:1380,height:880),styleMask:[.titled,.closable,.miniaturizable,.resizable],backing:.buffered,defer:false)
         super.init(window:window); window.title="Orator"; window.minSize=NSSize(width:920,height:640); window.center(); window.tabbingMode = .preferred
         window.setFrameAutosaveName("OratorEditor"); window.isReleasedWhenClosed=false
-        canvas.editor=self; inspector.editor=self
+        canvas.editor=self; inspector.editor=self; navigator.editor=self
         buildWorkspace(); buildToolbar()
         document.didChange = { [weak self] in self?.refresh() }
         refresh()
@@ -123,7 +124,8 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
         if let cached=thumbnails[slide.id], cached.0 == slide, cached.1 == presentation.deck.theme { image.image=cached.2 }
         else { let thumbnail=SlideRenderer.shared.thumbnail(slide:slide,deck:presentation.deck,size:NSSize(width:240,height:135)); thumbnails[slide.id]=(slide,presentation.deck.theme,thumbnail); image.image=thumbnail }
         image.translatesAutoresizingMaskIntoConstraints=false
-        let title=NSTextField(labelWithString:"\(row+1)  \(slide.skipped ? "[Skipped] " : "")\(slide.title)"); title.font = .systemFont(ofSize:11); title.lineBreakMode = .byTruncatingTail; title.translatesAutoresizingMaskIntoConstraints=false
+        let section=(row == 0 || presentation.deck.slides[row-1].section != slide.section) && !slide.section.isEmpty ? slide.section.uppercased()+" · " : ""
+        let title=NSTextField(labelWithString:"\(section)\(row+1)  \(slide.skipped ? "[Skipped] " : "")\(slide.title)"); title.font = .systemFont(ofSize:11); title.lineBreakMode = .byTruncatingTail; title.translatesAutoresizingMaskIntoConstraints=false
         cell.addSubview(image); cell.addSubview(title); cell.imageView=image; cell.textField=title
         NSLayoutConstraint.activate([image.topAnchor.constraint(equalTo:cell.topAnchor,constant:6),image.leadingAnchor.constraint(equalTo:cell.leadingAnchor,constant:14),image.trailingAnchor.constraint(equalTo:cell.trailingAnchor,constant:-14),image.heightAnchor.constraint(equalToConstant:96),title.topAnchor.constraint(equalTo:image.bottomAnchor,constant:4),title.leadingAnchor.constraint(equalTo:image.leadingAnchor),title.trailingAnchor.constraint(equalTo:image.trailingAnchor)])
         cell.setAccessibilityLabel("Slide \(row+1): \(slide.title)"); return cell
@@ -157,6 +159,24 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
         let slide=(Layout(rawValue:sender.representedObject as? String ?? "Blank") ?? .blank).makeSlide()
         let index=(presentation.deck.slides.firstIndex { $0.id == selectedSlideID } ?? 0)+1
         presentation.perform(.insertSlide(slide,index),named:"Add Slide"); selectedSlideID=slide.id; canvas.selected=[]; refresh()
+    }
+    @objc func copySlides(_ sender: Any?) {
+        canvas.finishText()
+        let slides=navigator.selectedRowIndexes.map { presentation.deck.slides[$0] }
+        guard !slides.isEmpty, let data=try? JSONEncoder().encode(SlideClipboard(slides:slides,assets:presentation.deck.assets)) else { return }
+        NSPasteboard.general.clearContents(); NSPasteboard.general.setData(data,forType:Self.slidePasteboard)
+    }
+    @objc func pasteSlides(_ sender: Any?) {
+        canvas.finishText()
+        guard let data=NSPasteboard.general.data(forType:Self.slidePasteboard), let payload=try? JSONDecoder().decode(SlideClipboard.self,from:data) else { return }
+        let slides=payload.slides.map { $0.duplicated() }
+        let position=(presentation.deck.slides.firstIndex { $0.id == selectedSlideID } ?? 0)+1
+        let edits=payload.assets.values.map(Edit.putAsset)+slides.enumerated().map { Edit.insertSlide($0.element,position+$0.offset) }
+        var candidate=presentation.deck
+        do { try Edit.batch(edits).apply(to:&candidate); try PresentationFile.validate(candidate) }
+        catch { presentation.presentError(error); return }
+        presentation.perform(.batch(edits),named:"Paste Slides")
+        if let first=slides.first { selectedSlideID=first.id; refresh() }
     }
     @objc func duplicateSlides(_ sender: Any?) {
         canvas.finishText(); let indices=navigator.selectedRowIndexes.sorted(); var edits: [Edit]=[]
@@ -236,6 +256,11 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
         }; commit(slide,name:"Ungroup Objects"); canvas.selected=ids
     }
     @objc func toggleLock(_ sender: Any?) { canvas.finishText(); var slide=currentSlide; for i in slide.objects.indices where canvas.selected.contains(slide.objects[i].id) { slide.objects[i].locked.toggle() }; commit(slide,name:"Lock Objects") }
+    @objc func toggleVisibility(_ sender: Any?) {
+        canvas.finishText(); var slide=currentSlide
+        for i in slide.objects.indices where canvas.selected.contains(slide.objects[i].id) { slide.objects[i].hidden.toggle() }
+        commit(slide,name:"Show / Hide Objects")
+    }
     @objc func unlockAll(_ sender: Any?) { var slide=currentSlide; for i in slide.objects.indices { slide.objects[i].locked=false }; commit(slide,name:"Unlock All") }
     @objc func bringToFront(_ sender: Any?) { var slide=currentSlide; let objects=slide.objects.filter { canvas.selected.contains($0.id) }; slide.objects.removeAll { canvas.selected.contains($0.id) }; slide.objects += objects; commit(slide,name:"Bring to Front") }
     @objc func sendToBack(_ sender: Any?) { var slide=currentSlide; let objects=slide.objects.filter { canvas.selected.contains($0.id) }; slide.objects.removeAll { canvas.selected.contains($0.id) }; slide.objects.insert(contentsOf:objects,at:0); commit(slide,name:"Send to Back") }

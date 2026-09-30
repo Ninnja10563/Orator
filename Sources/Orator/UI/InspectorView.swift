@@ -1,23 +1,26 @@
 import AppKit
 import PresentationCore
 
-final class InspectorView: NSView {
+final class InspectorView: SurfaceView {
     weak var editor: EditorWindowController?
     private let stack=NSStackView()
     private var fields: [String:NSTextField]=[:]
     private let selectionLabel=NSTextField(labelWithString:"Slide")
     private var updating=false
     private let fill=NSColorWell(), textColor=NSColorWell()
+    private let layers=NSPopUpButton()
     private let theme=NSPopUpButton(), transition=NSPopUpButton(), font=NSPopUpButton(), alignment=NSPopUpButton(), chart=NSPopUpButton(), fit=NSPopUpButton()
     private let bold=NSButton(checkboxWithTitle:"Bold",target:nil,action:nil), italic=NSButton(checkboxWithTitle:"Italic",target:nil,action:nil), underline=NSButton(checkboxWithTitle:"Underline",target:nil,action:nil)
     override init(frame: NSRect) {
         super.init(frame:frame)
         let scroll=NSScrollView(); scroll.hasVerticalScroller=true; scroll.drawsBackground=false; scroll.translatesAutoresizingMaskIntoConstraints=false; addSubview(scroll)
         NSLayoutConstraint.activate([scroll.leadingAnchor.constraint(equalTo:leadingAnchor),scroll.trailingAnchor.constraint(equalTo:trailingAnchor),scroll.topAnchor.constraint(equalTo:topAnchor),scroll.bottomAnchor.constraint(equalTo:bottomAnchor)])
-        let body=NSView(); body.translatesAutoresizingMaskIntoConstraints=false; scroll.documentView=body
+        let body=FlippedView(); body.translatesAutoresizingMaskIntoConstraints=false; scroll.documentView=body
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing=10; stack.translatesAutoresizingMaskIntoConstraints=false; body.addSubview(stack)
         NSLayoutConstraint.activate([body.widthAnchor.constraint(equalTo:scroll.widthAnchor),stack.leadingAnchor.constraint(equalTo:body.leadingAnchor,constant:18),stack.trailingAnchor.constraint(equalTo:body.trailingAnchor,constant:-18),stack.topAnchor.constraint(equalTo:body.topAnchor,constant:18),stack.bottomAnchor.constraint(equalTo:body.bottomAnchor,constant:-22)])
         selectionLabel.font = .systemFont(ofSize:16,weight:.semibold); stack.addArrangedSubview(selectionLabel)
+        heading("SLIDE")
+        field("Title",key:"slideTitle"); field("Section",key:"section")
         heading("PRESENTATION")
         theme.addItems(withTitles:Theme.all.map(\.name)); theme.target=self; theme.action=#selector(changeTheme); row("Theme",theme)
         transition.addItems(withTitles:TransitionKind.allCases.map(\.rawValue)); transition.target=self; transition.action=#selector(changeTransition); row("Transition",transition)
@@ -42,6 +45,8 @@ final class InspectorView: NSView {
         button("Reset Image Crop",#selector(resetCrop))
         button("Reset Theme Colors",#selector(resetColors))
         heading("LAYERS")
+        layers.target=self; layers.action=#selector(selectLayer); row("Object",layers)
+        button("Show / Hide Selection",#selector(visibility))
         button("Bring to Front",#selector(front)); button("Send to Back",#selector(back)); button("Lock / Unlock Selection",#selector(lock)); button("Unlock All Objects",#selector(unlock))
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -57,9 +62,16 @@ final class InspectorView: NSView {
         guard let editor=editor else { return }; updating=true; defer { updating=false }
         let objects=editor.currentSlide.objects.filter { editor.canvas.selected.contains($0.id) }, object=objects.first
         selectionLabel.stringValue=objects.count > 1 ? "\(objects.count) objects" : object?.name ?? "Slide"
+        layers.removeAllItems(); layers.addItem(withTitle:"Choose an object")
+        for object in editor.currentSlide.objects.reversed() {
+            layers.addItem(withTitle:object.name+(object.hidden ? " (hidden)" : "")+(object.locked ? " (locked)" : ""))
+            layers.lastItem?.representedObject=object.id.uuidString
+            if editor.canvas.selected.contains(object.id) { layers.select(layers.lastItem) }
+        }
+        fields["slideTitle"]?.stringValue=editor.currentSlide.title; fields["section"]?.stringValue=editor.currentSlide.section
         theme.selectItem(withTitle:editor.presentation.deck.theme.name); transition.selectItem(withTitle:editor.currentSlide.transition.kind.rawValue)
         fields["duration"]?.doubleValue=editor.currentSlide.transition.duration; fields["advance"]?.doubleValue=editor.currentSlide.transition.advanceAfter ?? 0
-        for (key,field) in fields where key != "duration" && key != "advance" { field.isEnabled=object != nil; if object == nil { field.stringValue="—" } }
+        for (key,field) in fields where !["duration","advance","slideTitle","section"].contains(key) { field.isEnabled=object != nil; if object == nil { field.stringValue="—" } }
         guard let o=object else { return }
         fields["name"]?.stringValue=o.name
         for (key,value) in [("x",o.frame.x),("y",o.frame.y),("width",o.frame.width),("height",o.frame.height),("rotation",o.rotation),("opacity",o.opacity*100),("size",o.textStyle.size)] { fields[key]?.stringValue=String(format:"%.1f",value) }
@@ -70,6 +82,11 @@ final class InspectorView: NSView {
     }
     @objc func changeField(_ sender: NSTextField) {
         guard !updating, let key=sender.identifier?.rawValue, let editor=editor else { return }
+        if key == "slideTitle" || key == "section" {
+            var slide=editor.currentSlide
+            if key == "slideTitle" { slide.title=sender.stringValue } else { slide.section=sender.stringValue }
+            editor.commit(slide,name:"Edit Slide Details"); return
+        }
         if key == "name" { editor.mutateSelection("Rename Object") { $0.name=sender.stringValue }; return }
         guard let value=Double(sender.stringValue), value.isFinite else { refresh(); return }
         if key == "duration" || key == "advance" {
@@ -91,6 +108,11 @@ final class InspectorView: NSView {
             }; o.transform(to:f)
         }
     }
+    @objc func selectLayer() {
+        guard let id=(layers.selectedItem?.representedObject as? String).flatMap(UUID.init(uuidString:)) else { return }
+        editor?.canvas.selected=[id]
+    }
+    @objc func visibility() { editor?.toggleVisibility(nil) }
     @objc func changeTheme() { guard !updating, let editor=editor else { return }; editor.canvas.finishText(); editor.presentation.perform(.setTheme(Theme.all[theme.indexOfSelectedItem]),named:"Change Theme") }
     @objc func changeTransition() { guard !updating, let editor=editor else { return }; var slide=editor.currentSlide; slide.transition.kind=TransitionKind.allCases[transition.indexOfSelectedItem]; editor.commit(slide,name:"Change Transition") }
     @objc func changeFill() { editor?.mutateSelection("Change Fill") { $0.style.fill=RGBA(fill.color) } }
