@@ -179,6 +179,7 @@ public struct Slide: Codable, Equatable, Identifiable, Sendable {
     public var layoutID: UUID? = nil
     public var objects: [SlideObject] = []
     public var background: RGBA? = nil
+    public var showsMasterObjects: Bool? = nil
     public var notes = ""; public var skipped = false
     public var transition = Transition()
     public var animations: [ObjectAnimation]? = nil

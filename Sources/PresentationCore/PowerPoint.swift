@@ -37,84 +37,99 @@ public enum PowerPoint {
         override("ppt/slideMasters/slideMaster1.xml","presentationml.slideMaster")
         override("ppt/slideLayouts/slideLayout1.xml","presentationml.slideLayout")
         override("ppt/theme/theme1.xml","theme")
-        for (index,sourceSlide) in deck.slides.enumerated() {
-            let slide=deck.resolved(sourceSlide)
-            let n=index+1; var rels=relationship("rIdLayout","slideLayout","../slideLayouts/slideLayout1.xml"), body="", objectNumber=1, hyperlinkNumber=0
-            var numericIDs: [UUID:Int]=[:], nextObjectID=1
-            func indexObjects(_ objects: [SlideObject]) { for object in objects where !object.hidden { nextObjectID += 1; numericIDs[object.id]=nextObjectID; if object.kind == .group { indexObjects(object.children) } } }; indexObjects(slide.objects)
-            func objectXML(_ o: SlideObject) throws -> String {
-                guard !o.hidden else { return "" }
-                objectNumber += 1; let id=objectNumber
-                let nv="<p:cNvPr id=\"\(id)\" name=\"\(xml(o.name))\"/>"
-                if o.kind == .group {
-                    let f=o.frame
-                    let transform="<a:xfrm rot=\"\(Int(o.rotation*60000))\"><a:off x=\"\(emu(f.x))\" y=\"\(emu(f.y))\"/><a:ext cx=\"\(emu(f.width))\" cy=\"\(emu(f.height))\"/><a:chOff x=\"\(emu(f.x))\" y=\"\(emu(f.y))\"/><a:chExt cx=\"\(emu(f.width))\" cy=\"\(emu(f.height))\"/></a:xfrm>"
-                    let children=try o.children.map { child -> String in var child=child; child.opacity *= o.opacity; return try objectXML(child) }.joined()
-                    return "<p:grpSp><p:nvGrpSpPr>\(nv)<p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr>\(transform)</p:grpSpPr>\(children)</p:grpSp>"
-                }
-                if let connector=o.connector {
-                    func connection(_ tag: String,_ endpoint: ConnectorEndpoint) -> String {
-                        guard let id=endpoint.objectID.flatMap({ numericIDs[$0] }) else { return "" }; let index: Int
-                        switch endpoint.anchor { case .top,.center:index=0; case .left:index=1; case .bottom:index=2; case .right:index=3 }
-                        return "<a:\(tag) id=\"\(id)\" idx=\"\(index)\"/>"
-                    }
-                    let geometry=connector.kind == .straight ? "line" : connector.kind == .elbow ? "bentConnector3" : "curvedConnector3"
-                    let transform=xfrm(o).replacingOccurrences(of:"<a:xfrm ",with:"<a:xfrm flipH=\"\(connector.end.point.x < connector.start.point.x ? 1 : 0)\" flipV=\"\(connector.end.point.y < connector.start.point.y ? 1 : 0)\" ")
-                    let arrow=connector.arrow ? "<a:tailEnd type=\"triangle\" w=\"med\" len=\"med\"/>" : ""
-                    return "<p:cxnSp><p:nvCxnSpPr>\(nv)<p:cNvCxnSpPr>\(connection("stCxn",connector.start))\(connection("endCxn",connector.end))</p:cNvCxnSpPr><p:nvPr/></p:nvCxnSpPr><p:spPr>\(transform)<a:prstGeom prst=\"\(geometry)\"><a:avLst/></a:prstGeom><a:ln w=\"\(emu(max(1,o.style.strokeWidth)))\">\(solid(o.style.stroke))\(arrow)</a:ln></p:spPr></p:cxnSp>"
-                }
-                if o.opacity < 1 && [.chart,.table,.video,.audio].contains(o.kind) { warnings.insert("Table, chart and media object opacity is not retained in PowerPoint export.") }
-                if o.kind == .image, let image=o.image, let asset=deck.assets[image.assetID] {
-                    let ext: String
-                    if asset.data.starts(with:[0x89,0x50,0x4e,0x47]) { ext="png" }
-                    else if asset.data.starts(with:[0xff,0xd8]) { ext="jpg" }
-                    else if asset.data.starts(with:[0x49,0x49,0x2a,0]) || asset.data.starts(with:[0x4d,0x4d,0,0x2a]) { ext="tiff" }
-                    else { throw FormatError.invalid("convert unsupported image assets to PNG before PowerPoint export") }
-                    let filename="image\(n)_\(id).\(ext)", path="ppt/media/\(filename)"
-                    let url=root.appendingPathComponent(path); try FileManager.default.createDirectory(at:url.deletingLastPathComponent(),withIntermediateDirectories:true); try asset.data.write(to:url)
-                    let rid="rIdImage\(id)"; rels += relationship(rid,"image","../media/\(filename)")
-                    let c=image.crop
-                    let imageTransform=xfrm(o).replacingOccurrences(of:"<a:xfrm ",with:"<a:xfrm flipH=\"\(image.flippedHorizontally ? 1 : 0)\" flipV=\"\(image.flippedVertically == true ? 1 : 0)\" ")
-                    return "<p:pic><p:nvPicPr>\(nv)<p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed=\"\(rid)\"><a:alphaModFix amt=\"\(Int(o.opacity*100000))\"/></a:blip><a:srcRect l=\"\(Int(c.x*100000))\" t=\"\(Int(c.y*100000))\" r=\"\(Int((1-c.maxX)*100000))\" b=\"\(Int((1-c.maxY)*100000))\"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>\(imageTransform)<a:prstGeom prst=\"\(image.mask == .ellipse ? "ellipse" : image.mask == .roundedRectangle ? "roundRect" : "rect")\"><a:avLst/></a:prstGeom>\(objectStyleXML(o,theme:deck.theme))</p:spPr></p:pic>"
-                }
-                if o.kind == .table, let table=o.table, let columns=table.cells.first?.count, columns > 0 {
-                    return "<p:graphicFrame><p:nvGraphicFramePr>\(nv)<p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x=\"\(emu(o.frame.x))\" y=\"\(emu(o.frame.y))\"/><a:ext cx=\"\(emu(o.frame.width))\" cy=\"\(emu(o.frame.height))\"/></p:xfrm><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/table\">\(tableXML(table,object:o,theme:deck.theme))</a:graphicData></a:graphic></p:graphicFrame>"
-                }
-                if let media=o.media, let asset=deck.assets[media.assetID] {
-                    let ext=URL(fileURLWithPath:asset.name).pathExtension.lowercased()
-                    let types=["mp4":"video/mp4","m4v":"video/mp4","mov":"video/quicktime","mp3":"audio/mpeg","m4a":"audio/mp4","wav":"audio/wav","aiff":"audio/aiff","aif":"audio/aiff"]
-                    guard let mime=types[ext] else { throw FormatError.invalid("unsupported PowerPoint media extension: \(ext)") }
-                    mediaTypes[ext]=mime
-                    let filename="media\(n)_\(id).\(ext)", target=root.appendingPathComponent("ppt/media/"+filename)
-                    try FileManager.default.createDirectory(at:target.deletingLastPathComponent(),withIntermediateDirectories:true); try asset.data.write(to:target)
-                    let rid="rIdMedia\(id)", embed="rIdEmbed\(id)", posterID="rIdPoster\(id)"
-                    rels += relationship(rid,o.kind == .video ? "video" : "audio","../media/"+filename)
-                    rels += "<Relationship Id=\"\(embed)\" Type=\"http://schemas.microsoft.com/office/2007/relationships/media\" Target=\"../media/\(xml(filename))\"/>"
-                    let poster=media.posterAssetID.flatMap { deck.assets[$0]?.data } ?? Data(base64Encoded:"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")!
-                    let posterName="poster\(n)_\(id).png"; try poster.write(to:root.appendingPathComponent("ppt/media/"+posterName)); rels += relationship(posterID,"image","../media/"+posterName)
-                    warnings.insert("Audio/video assets are embedded. Orator trim, fade, loop and automatic playback settings are not exported; configure playback in PowerPoint.")
-                    let kind=o.kind == .video ? "videoFile" : "audioFile"
-                    return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(xml(o.name))\"><a:hlinkClick r:id=\"\" action=\"ppaction://media\"/></p:cNvPr><p:cNvPicPr/><p:nvPr><a:\(kind) r:link=\"\(rid)\"/><p:extLst><p:ext uri=\"{DAA4B4D4-6D71-4841-9C94-3DE7FCFB33CC}\"><p14:media xmlns:p14=\"http://schemas.microsoft.com/office/powerpoint/2010/main\" r:embed=\"\(embed)\"/></p:ext></p:extLst></p:nvPr></p:nvPicPr><p:blipFill><a:blip r:embed=\"\(posterID)\"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>\(xfrm(o))<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
-                }
-                if let chart=o.chart, o.kind == .chart {
-                    let name="chart\(n)_\(id)", rid="rIdChart\(id)"
-                    try write("ppt/charts/\(name).xml",chartXML(chart,theme:deck.theme)); override("ppt/charts/\(name).xml","drawingml.chart")
-                    try writeWorkbook(chart,to:root.appendingPathComponent("ppt/embeddings/\(name).xlsx")); mediaTypes["xlsx"]="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    try write("ppt/charts/_rels/\(name).xml.rels",relationships(relationship("rIdWorkbook","package","../embeddings/\(name).xlsx")))
-                    rels += relationship(rid,"chart","../charts/\(name).xml")
-                    return "<p:graphicFrame><p:nvGraphicFramePr>\(nv)<p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x=\"\(emu(o.frame.x))\" y=\"\(emu(o.frame.y))\"/><a:ext cx=\"\(emu(o.frame.width))\" cy=\"\(emu(o.frame.height))\"/></p:xfrm><a:graphic><a:graphicData uri=\"\(chartNS)\"><c:chart xmlns:c=\"\(chartNS)\" r:id=\"\(rid)\"/></a:graphicData></a:graphic></p:graphicFrame>"
-                }
-                let shapes: [ShapeKind:String]=[.rectangle:"rect",.roundedRectangle:"roundRect",.ellipse:"ellipse",.circle:"ellipse",.polygon:"hexagon",.doubleArrow:"line",.speechBubble:"wedgeRoundRectCallout",.triangle:"triangle",.diamond:"diamond",.star:"star5",.line:"line",.arrow:"line"]
-                let style=objectStyleXML(o,theme:deck.theme)
-                var geometryObject=o
-                if [ShapeKind.line,.arrow,.doubleArrow].contains(o.shape) { geometryObject.frame.y=o.frame.midY; geometryObject.frame.height=1 }
-                return "<p:sp><p:nvSpPr>\(nv)<p:cNvSpPr txBox=\"\(o.kind == .text ? 1 : 0)\"/><p:nvPr/></p:nvSpPr><p:spPr>\(xfrm(geometryObject))<a:prstGeom prst=\"\(shapes[o.shape] ?? "rect")\"><a:avLst/></a:prstGeom>\(style)</p:spPr><p:txBody><a:bodyPr wrap=\"square\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\"/><a:lstStyle/>\(paragraphs(o.text,style:o.textStyle,theme:deck.theme,runs:o.textRuns,opacity:o.opacity,hyperlink:{ target in hyperlinkNumber += 1; let id="rIdLink\(hyperlinkNumber)"; rels += "<Relationship Id=\"\(id)\" Type=\"\(r)/hyperlink\" Target=\"\(xml(target))\" TargetMode=\"External\"/>"; return id }))</p:txBody></p:sp>"
+        let masters=deck.masters ?? []
+        let masterParts=Dictionary(uniqueKeysWithValues:masters.enumerated().map { ($0.element.id,$0.offset+2) })
+        var layoutParts: [UUID:Int]=[:], defaultLayouts: [UUID:Int]=[:], nextLayout=2
+        for master in masters { defaultLayouts[master.id]=nextLayout; nextLayout += 1; for layout in master.layouts { layoutParts[layout.id]=nextLayout; nextLayout += 1 } }
+        let keys=Set(deck.slides.flatMap(\.objects).compactMap(\.placeholderKey)+masters.flatMap { $0.objects+$0.layouts.flatMap(\.objects) }.compactMap(\.placeholderKey)).sorted()
+        let placeholderIndices=Dictionary(uniqueKeysWithValues:keys.enumerated().map { ($0.element,$0.offset+1) })
+        var n="", rels="", objectNumber=1, hyperlinkNumber=0, numericIDs: [UUID:Int]=[:]
+        func beginPart(_ name: String,objects: [SlideObject]) {
+            n=name; rels=""; objectNumber=1; hyperlinkNumber=0; numericIDs=[:]; var nextObjectID=1
+            func indexObjects(_ objects: [SlideObject]) { for object in objects where !object.hidden { nextObjectID += 1; numericIDs[object.id]=nextObjectID; if object.kind == .group { indexObjects(object.children) } } }; indexObjects(objects)
+        }
+        func objectXML(_ o: SlideObject) throws -> String {
+            guard !o.hidden else { return "" }
+            objectNumber += 1; let id=objectNumber
+            let placeholder=o.placeholderKey.map { key in "<p:ph type=\"\(key == "title" ? "title" : "body")\" idx=\"\(placeholderIndices[key] ?? 0)\"/>" } ?? ""
+            let nvProperties="<p:nvPr>\(placeholder)</p:nvPr>"
+            let nv="<p:cNvPr id=\"\(id)\" name=\"\(xml(o.name))\"/>"
+            if o.kind == .group {
+                let f=o.frame
+                let transform="<a:xfrm rot=\"\(Int(o.rotation*60000))\"><a:off x=\"\(emu(f.x))\" y=\"\(emu(f.y))\"/><a:ext cx=\"\(emu(f.width))\" cy=\"\(emu(f.height))\"/><a:chOff x=\"\(emu(f.x))\" y=\"\(emu(f.y))\"/><a:chExt cx=\"\(emu(f.width))\" cy=\"\(emu(f.height))\"/></a:xfrm>"
+                let children=try o.children.map { child -> String in var child=child; child.opacity *= o.opacity; return try objectXML(child) }.joined()
+                return "<p:grpSp><p:nvGrpSpPr>\(nv)<p:cNvGrpSpPr/>\(nvProperties)</p:nvGrpSpPr><p:grpSpPr>\(transform)</p:grpSpPr>\(children)</p:grpSp>"
             }
+            if let connector=o.connector {
+                func connection(_ tag: String,_ endpoint: ConnectorEndpoint) -> String {
+                    guard let id=endpoint.objectID.flatMap({ numericIDs[$0] }) else { return "" }; let index: Int
+                    switch endpoint.anchor { case .top,.center:index=0; case .left:index=1; case .bottom:index=2; case .right:index=3 }
+                    return "<a:\(tag) id=\"\(id)\" idx=\"\(index)\"/>"
+                }
+                let geometry=connector.kind == .straight ? "line" : connector.kind == .elbow ? "bentConnector3" : "curvedConnector3"
+                let transform=xfrm(o).replacingOccurrences(of:"<a:xfrm ",with:"<a:xfrm flipH=\"\(connector.end.point.x < connector.start.point.x ? 1 : 0)\" flipV=\"\(connector.end.point.y < connector.start.point.y ? 1 : 0)\" ")
+                let arrow=connector.arrow ? "<a:tailEnd type=\"triangle\" w=\"med\" len=\"med\"/>" : ""
+                return "<p:cxnSp><p:nvCxnSpPr>\(nv)<p:cNvCxnSpPr>\(connection("stCxn",connector.start))\(connection("endCxn",connector.end))</p:cNvCxnSpPr>\(nvProperties)</p:nvCxnSpPr><p:spPr>\(transform)<a:prstGeom prst=\"\(geometry)\"><a:avLst/></a:prstGeom><a:ln w=\"\(emu(max(1,o.style.strokeWidth)))\">\(solid(o.style.stroke))\(arrow)</a:ln></p:spPr></p:cxnSp>"
+            }
+            if o.opacity < 1 && [.chart,.table,.video,.audio].contains(o.kind) { warnings.insert("Table, chart and media object opacity is not retained in PowerPoint export.") }
+            if o.kind == .image, let image=o.image, let asset=deck.assets[image.assetID] {
+                let ext: String
+                if asset.data.starts(with:[0x89,0x50,0x4e,0x47]) { ext="png" }
+                else if asset.data.starts(with:[0xff,0xd8]) { ext="jpg" }
+                else if asset.data.starts(with:[0x49,0x49,0x2a,0]) || asset.data.starts(with:[0x4d,0x4d,0,0x2a]) { ext="tiff" }
+                else { throw FormatError.invalid("convert unsupported image assets to PNG before PowerPoint export") }
+                let filename="image\(n)_\(id).\(ext)", path="ppt/media/\(filename)"
+                let url=root.appendingPathComponent(path); try FileManager.default.createDirectory(at:url.deletingLastPathComponent(),withIntermediateDirectories:true); try asset.data.write(to:url)
+                let rid="rIdImage\(id)"; rels += relationship(rid,"image","../media/\(filename)")
+                let c=image.crop
+                let imageTransform=xfrm(o).replacingOccurrences(of:"<a:xfrm ",with:"<a:xfrm flipH=\"\(image.flippedHorizontally ? 1 : 0)\" flipV=\"\(image.flippedVertically == true ? 1 : 0)\" ")
+                return "<p:pic><p:nvPicPr>\(nv)<p:cNvPicPr/>\(nvProperties)</p:nvPicPr><p:blipFill><a:blip r:embed=\"\(rid)\"><a:alphaModFix amt=\"\(Int(o.opacity*100000))\"/></a:blip><a:srcRect l=\"\(Int(c.x*100000))\" t=\"\(Int(c.y*100000))\" r=\"\(Int((1-c.maxX)*100000))\" b=\"\(Int((1-c.maxY)*100000))\"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>\(imageTransform)<a:prstGeom prst=\"\(image.mask == .ellipse ? "ellipse" : image.mask == .roundedRectangle ? "roundRect" : "rect")\"><a:avLst/></a:prstGeom>\(objectStyleXML(o,theme:deck.theme))</p:spPr></p:pic>"
+            }
+            if o.kind == .table, let table=o.table, let columns=table.cells.first?.count, columns > 0 {
+                return "<p:graphicFrame><p:nvGraphicFramePr>\(nv)<p:cNvGraphicFramePr/>\(nvProperties)</p:nvGraphicFramePr><p:xfrm><a:off x=\"\(emu(o.frame.x))\" y=\"\(emu(o.frame.y))\"/><a:ext cx=\"\(emu(o.frame.width))\" cy=\"\(emu(o.frame.height))\"/></p:xfrm><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/table\">\(tableXML(table,object:o,theme:deck.theme))</a:graphicData></a:graphic></p:graphicFrame>"
+            }
+            if let media=o.media, let asset=deck.assets[media.assetID] {
+                let ext=URL(fileURLWithPath:asset.name).pathExtension.lowercased()
+                let types=["mp4":"video/mp4","m4v":"video/mp4","mov":"video/quicktime","mp3":"audio/mpeg","m4a":"audio/mp4","wav":"audio/wav","aiff":"audio/aiff","aif":"audio/aiff"]
+                guard let mime=types[ext] else { throw FormatError.invalid("unsupported PowerPoint media extension: \(ext)") }
+                mediaTypes[ext]=mime
+                let filename="media\(n)_\(id).\(ext)", target=root.appendingPathComponent("ppt/media/"+filename)
+                try FileManager.default.createDirectory(at:target.deletingLastPathComponent(),withIntermediateDirectories:true); try asset.data.write(to:target)
+                let rid="rIdMedia\(id)", embed="rIdEmbed\(id)", posterID="rIdPoster\(id)"
+                rels += relationship(rid,o.kind == .video ? "video" : "audio","../media/"+filename)
+                rels += "<Relationship Id=\"\(embed)\" Type=\"http://schemas.microsoft.com/office/2007/relationships/media\" Target=\"../media/\(xml(filename))\"/>"
+                let poster=media.posterAssetID.flatMap { deck.assets[$0]?.data } ?? Data(base64Encoded:"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")!
+                let posterName="poster\(n)_\(id).png"; try poster.write(to:root.appendingPathComponent("ppt/media/"+posterName)); rels += relationship(posterID,"image","../media/"+posterName)
+                warnings.insert("Audio/video assets are embedded. Orator trim, fade, loop and automatic playback settings are not exported; configure playback in PowerPoint.")
+                let kind=o.kind == .video ? "videoFile" : "audioFile"
+                return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(xml(o.name))\"><a:hlinkClick r:id=\"\" action=\"ppaction://media\"/></p:cNvPr><p:cNvPicPr/><p:nvPr><a:\(kind) r:link=\"\(rid)\"/><p:extLst><p:ext uri=\"{DAA4B4D4-6D71-4841-9C94-3DE7FCFB33CC}\"><p14:media xmlns:p14=\"http://schemas.microsoft.com/office/powerpoint/2010/main\" r:embed=\"\(embed)\"/></p:ext></p:extLst></p:nvPr></p:nvPicPr><p:blipFill><a:blip r:embed=\"\(posterID)\"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>\(xfrm(o))<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
+            }
+            if let chart=o.chart, o.kind == .chart {
+                let name="chart\(n)_\(id)", rid="rIdChart\(id)"
+                try write("ppt/charts/\(name).xml",chartXML(chart,theme:deck.theme)); override("ppt/charts/\(name).xml","drawingml.chart")
+                try writeWorkbook(chart,to:root.appendingPathComponent("ppt/embeddings/\(name).xlsx")); mediaTypes["xlsx"]="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                try write("ppt/charts/_rels/\(name).xml.rels",relationships(relationship("rIdWorkbook","package","../embeddings/\(name).xlsx")))
+                rels += relationship(rid,"chart","../charts/\(name).xml")
+                return "<p:graphicFrame><p:nvGraphicFramePr>\(nv)<p:cNvGraphicFramePr/>\(nvProperties)</p:nvGraphicFramePr><p:xfrm><a:off x=\"\(emu(o.frame.x))\" y=\"\(emu(o.frame.y))\"/><a:ext cx=\"\(emu(o.frame.width))\" cy=\"\(emu(o.frame.height))\"/></p:xfrm><a:graphic><a:graphicData uri=\"\(chartNS)\"><c:chart xmlns:c=\"\(chartNS)\" r:id=\"\(rid)\"/></a:graphicData></a:graphic></p:graphicFrame>"
+            }
+            let shapes: [ShapeKind:String]=[.rectangle:"rect",.roundedRectangle:"roundRect",.ellipse:"ellipse",.circle:"ellipse",.polygon:"hexagon",.doubleArrow:"line",.speechBubble:"wedgeRoundRectCallout",.triangle:"triangle",.diamond:"diamond",.star:"star5",.line:"line",.arrow:"line"]
+            let style=objectStyleXML(o,theme:deck.theme)
+            var geometryObject=o
+            if [ShapeKind.line,.arrow,.doubleArrow].contains(o.shape) { geometryObject.frame.y=o.frame.midY; geometryObject.frame.height=1 }
+            return "<p:sp><p:nvSpPr>\(nv)<p:cNvSpPr txBox=\"\(o.kind == .text ? 1 : 0)\"/>\(nvProperties)</p:nvSpPr><p:spPr>\(o.layoutLinked == true && o.placeholderKey != nil ? "" : xfrm(geometryObject))<a:prstGeom prst=\"\(shapes[o.shape] ?? "rect")\"><a:avLst/></a:prstGeom>\(style)</p:spPr><p:txBody><a:bodyPr wrap=\"square\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\"/><a:lstStyle/>\(paragraphs(o.text,style:o.textStyle,theme:deck.theme,runs:o.textRuns,opacity:o.opacity,inheritDefaults:o.masterTextLinked == true,hyperlink:{ target in hyperlinkNumber += 1; let id="rIdLink\(hyperlinkNumber)"; rels += "<Relationship Id=\"\(id)\" Type=\"\(r)/hyperlink\" Target=\"\(xml(target))\" TargetMode=\"External\"/>"; return id }))</p:txBody></p:sp>"
+        }
+        for (index,sourceSlide) in deck.slides.enumerated() {
+            let slide=deck.resolvedContent(sourceSlide)
+            beginPart(String(index+1),objects:slide.objects)
+            let layout=sourceSlide.layoutID.flatMap { layoutParts[$0] } ?? sourceSlide.masterID.flatMap { defaultLayouts[$0] } ?? 1
+            rels=relationship("rIdLayout","slideLayout","../slideLayouts/slideLayout\(layout).xml"); var body=""
             for object in slide.objects { body += try objectXML(object) }
             let timing=timingXML(slide,ids:numericIDs,width:deck.width,height:deck.height)
+            let background=slide.background ?? (slide.masterID == nil ? deck.theme.background : nil)
+            let backgroundXML=background.map { "<p:bg><p:bgPr>\(solid($0))<a:effectLst/></p:bgPr></p:bg>" } ?? ""
             let transition=transitionXML(slide.transition)
             if slide.transition.kind == .continuity { warnings.insert("Continuity transitions export as Fade. Object matching remains available in native Orator files.") }
-            try write("ppt/slides/slide\(n).xml","<?xml version=\"1.0\" encoding=\"UTF-8\"?><p:sld xmlns:a=\"\(a)\" xmlns:r=\"\(r)\" xmlns:p=\"\(p)\" show=\"\(slide.skipped ? 0 : 1)\"><p:cSld name=\"\(xml(slide.title))\"><p:bg><p:bgPr>\(solid(slide.background ?? deck.theme.background))<a:effectLst/></p:bgPr></p:bg><p:spTree>\(groupHeader)\(body)</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>\(transition)\(timing)</p:sld>")
+            try write("ppt/slides/slide\(n).xml","<?xml version=\"1.0\" encoding=\"UTF-8\"?><p:sld xmlns:a=\"\(a)\" xmlns:r=\"\(r)\" xmlns:p=\"\(p)\" show=\"\(slide.skipped ? 0 : 1)\" showMasterSp=\"\(slide.showsMasterObjects == false ? 0 : 1)\"><p:cSld name=\"\(xml(slide.title))\">\(backgroundXML)<p:spTree>\(groupHeader)\(body)</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>\(transition)\(timing)</p:sld>")
             if !slide.notes.isEmpty {
                 rels += relationship("rIdNotes","notesSlide","../notesSlides/notesSlide\(n).xml")
                 try write("ppt/notesSlides/notesSlide\(n).xml","<p:notes xmlns:a=\"\(a)\" xmlns:r=\"\(r)\" xmlns:p=\"\(p)\"><p:cSld><p:spTree>\(groupHeader)<p:sp><p:nvSpPr><p:cNvPr id=\"2\" name=\"Notes\"/><p:cNvSpPr/><p:nvPr><p:ph type=\"body\" idx=\"1\"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/>\(paragraphs(slide.notes,style:TextStyle(),theme:deck.theme))</p:txBody></p:sp></p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:notes>")
@@ -128,12 +143,35 @@ public enum PowerPoint {
                 if slide.comments.contains(where: { $0.resolved || $0.objectID != nil }) { warnings.insert("Comment text, authors and replies export to PowerPoint. Resolution state and object anchors are preserved as Orator metadata; other applications may display ordinary slide comments.") }
             }
             try write("ppt/slides/_rels/slide\(n).xml.rels",relationships(rels))
-            slideIDs += "<p:sldId id=\"\(256+n)\" r:id=\"rId\(n)\"/>"; presentationRels += relationship("rId\(n)","slide","slides/slide\(n).xml")
+            slideIDs += "<p:sldId id=\"\(257+index)\" r:id=\"rId\(n)\"/>"; presentationRels += relationship("rId\(n)","slide","slides/slide\(n).xml")
             override("ppt/slides/slide\(n).xml","presentationml.slide")
         }
         if !authors.isEmpty { try write("ppt/commentAuthors.xml",commentAuthorsXML(authors,counts:commentCounts)); override("ppt/commentAuthors.xml","presentationml.commentAuthors"); presentationRels += relationship("rIdCommentAuthors","commentAuthors","commentAuthors.xml") }
+        var masterIDsXML="<p:sldMasterId id=\"2147483648\" r:id=\"rIdMaster\"/>"
+        let masterColorMap="<p:clrMap bg1=\"lt1\" tx1=\"dk1\" bg2=\"lt2\" tx2=\"dk2\" accent1=\"accent1\" accent2=\"accent2\" accent3=\"accent3\" accent4=\"accent4\" accent5=\"accent5\" accent6=\"accent6\" hlink=\"hlink\" folHlink=\"folHlink\"/>"
+        for master in masters {
+            let part=masterParts[master.id]!, defaultLayout=defaultLayouts[master.id]!
+            var layoutIDs=""
+            let layouts=[(defaultLayout,"Blank",[SlideObject]())]+master.layouts.map { (layoutParts[$0.id]!,$0.name,$0.objects) }
+            for (number,name,objects) in layouts {
+                beginPart("layout\(number)",objects:objects); let body=try objects.map(objectXML).joined()
+                try write("ppt/slideLayouts/slideLayout\(number).xml","<p:sldLayout xmlns:a=\"\(a)\" xmlns:r=\"\(r)\" xmlns:p=\"\(p)\" type=\"cust\" preserve=\"1\"><p:cSld name=\"\(xml(name))\"><p:spTree>\(groupHeader)\(body)</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>")
+                try write("ppt/slideLayouts/_rels/slideLayout\(number).xml.rels",relationships(rels+relationship("rIdMaster","slideMaster","../slideMasters/slideMaster\(part).xml")))
+                override("ppt/slideLayouts/slideLayout\(number).xml","presentationml.slideLayout")
+                layoutIDs += "<p:sldLayoutId id=\"\(2147483648+number)\" r:id=\"rIdLayout\(number)\"/>"
+            }
+            beginPart("master\(part)",objects:master.objects); let body=try master.objects.map(objectXML).joined()
+            let background=master.background.map { "<p:bg><p:bgPr>\(solid($0))<a:effectLst/></p:bgPr></p:bg>" } ?? ""
+            func font(_ style: TextStyle) -> String { "<a:lvl1pPr><a:defRPr sz=\"\(Int(style.size*75))\" b=\"\(style.bold ? 1 : 0)\" i=\"\(style.italic ? 1 : 0)\">\(solid(style.color ?? deck.theme.foreground))<a:latin typeface=\"\(xml(style.fontName))\"/></a:defRPr></a:lvl1pPr>" }
+            try write("ppt/slideMasters/slideMaster\(part).xml","<p:sldMaster xmlns:a=\"\(a)\" xmlns:r=\"\(r)\" xmlns:p=\"\(p)\"><p:cSld name=\"\(xml(master.name))\">\(background)<p:spTree>\(groupHeader)\(body)</p:spTree></p:cSld>\(masterColorMap)<p:sldLayoutIdLst>\(layoutIDs)</p:sldLayoutIdLst><p:txStyles><p:titleStyle>\(font(master.titleFont))</p:titleStyle><p:bodyStyle>\(font(master.bodyFont))</p:bodyStyle><p:otherStyle>\(font(master.bodyFont))</p:otherStyle></p:txStyles></p:sldMaster>")
+            for (number,_,_) in layouts { rels += relationship("rIdLayout\(number)","slideLayout","../slideLayouts/slideLayout\(number).xml") }
+            rels += relationship("rIdTheme","theme","../theme/theme1.xml")
+            try write("ppt/slideMasters/_rels/slideMaster\(part).xml.rels",relationships(rels)); override("ppt/slideMasters/slideMaster\(part).xml","presentationml.slideMaster")
+            presentationRels += relationship("rIdMaster\(part)","slideMaster","slideMasters/slideMaster\(part).xml")
+            masterIDsXML += "<p:sldMasterId id=\"\(2147483647+part)\" r:id=\"rIdMaster\(part)\"/>"
+        }
         presentationRels += relationship("rIdMaster","slideMaster","slideMasters/slideMaster1.xml")
-        try write("ppt/presentation.xml","<p:presentation xmlns:a=\"\(a)\" xmlns:r=\"\(r)\" xmlns:p=\"\(p)\"><p:sldMasterIdLst><p:sldMasterId id=\"2147483648\" r:id=\"rIdMaster\"/></p:sldMasterIdLst><p:sldIdLst>\(slideIDs)</p:sldIdLst><p:sldSz cx=\"\(emu(deck.width))\" cy=\"\(emu(deck.height))\"/><p:notesSz cx=\"6858000\" cy=\"9144000\"/></p:presentation>")
+        try write("ppt/presentation.xml","<p:presentation xmlns:a=\"\(a)\" xmlns:r=\"\(r)\" xmlns:p=\"\(p)\"><p:sldMasterIdLst>\(masterIDsXML)</p:sldMasterIdLst><p:sldIdLst>\(slideIDs)</p:sldIdLst><p:sldSz cx=\"\(emu(deck.width))\" cy=\"\(emu(deck.height))\"/><p:notesSz cx=\"6858000\" cy=\"9144000\"/></p:presentation>")
         try write("ppt/_rels/presentation.xml.rels",relationships(presentationRels))
         let clrMap="<p:clrMap bg1=\"lt1\" tx1=\"dk1\" bg2=\"lt2\" tx2=\"dk2\" accent1=\"accent1\" accent2=\"accent2\" accent3=\"accent3\" accent4=\"accent4\" accent5=\"accent5\" accent6=\"accent6\" hlink=\"hlink\" folHlink=\"folHlink\"/>"
         try write("ppt/slideMasters/slideMaster1.xml","<p:sldMaster xmlns:a=\"\(a)\" xmlns:r=\"\(r)\" xmlns:p=\"\(p)\"><p:cSld><p:spTree>\(groupHeader)</p:spTree></p:cSld>\(clrMap)<p:sldLayoutIdLst><p:sldLayoutId id=\"2147483649\" r:id=\"rIdLayout\"/></p:sldLayoutIdLst><p:txStyles><p:titleStyle/><p:bodyStyle/><p:otherStyle/></p:txStyles></p:sldMaster>")

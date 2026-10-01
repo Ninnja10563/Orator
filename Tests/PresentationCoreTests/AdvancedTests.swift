@@ -265,4 +265,19 @@ extension AdvancedTests {
         XCTAssertEqual(imported.cells[2][2],"Rich cell"); XCTAssertTrue(imported.richText?["2:2"]?.first?.style.bold == true)
         table.setText("Replaced",row:2,column:2); XCTAssertNil(table.richText?["2:2"])
     }
+    func testMasterRelationshipsStayEditableAcrossOfficeExchange() throws {
+        var deck=Presentation(), master=SlideMaster(); master.name="Corporate"; master.titleFont.size=62
+        var footer=SlideObject(kind:.text,name:"Footer",frame:Rect(50,650,400,40)); footer.text="Shared footer"; master.objects=[footer]
+        var placeholder=SlideObject(kind:.text,name:"Title layout",frame:Rect(120,100,900,120)); placeholder.placeholderKey="title"
+        let layout=MasterLayout(name:"Custom title",objects:[placeholder]); master.layouts=[layout]; deck.masters=[master]
+        var object=placeholder.duplicated(offset:Point()); object.text="Linked title"; object.layoutLinked=true; object.masterTextLinked=true
+        deck.slides[0].objects=[object]; deck.slides[0].masterID=master.id; deck.slides[0].layoutID=layout.id
+        let url=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".pptx"); defer { try? FileManager.default.removeItem(at:url) }
+        _=try PowerPoint.export(deck,to:url); var imported=try PowerPoint.importDeck(from:url).deck
+        XCTAssertEqual(imported.masters?.first?.name,"Corporate"); XCTAssertEqual(imported.slides[0].objects.count,1)
+        XCTAssertEqual(imported.resolved(imported.slides[0]).objects.count,2)
+        imported.masters?[0].layouts[0].objects[0].frame.x=230; imported.masters?[0].titleFont.size=70
+        let resolved=imported.resolvedContent(imported.slides[0])
+        XCTAssertEqual(resolved.objects[0].frame.x,230); XCTAssertEqual(resolved.objects[0].textStyle.size,70)
+    }
 }

@@ -4,9 +4,10 @@ import FoundationXML
 #endif
 
 extension PowerPoint {
-    static func paragraphs(_ text: String,style: TextStyle,theme: Theme,runs: [TextRun]? = nil,opacity: Double = 1,hyperlink: ((String) -> String)? = nil) -> String {
+    static func paragraphs(_ text: String,style: TextStyle,theme: Theme,runs: [TextRun]? = nil,opacity: Double = 1,inheritDefaults: Bool = false,hyperlink: ((String) -> String)? = nil) -> String {
         var offset=0
         func properties(_ value: TextStyle) -> String {
+            if inheritDefaults && (runs == nil || runs?.isEmpty == true) { return "<a:rPr lang=\"en-US\"/>" }
             let foreground=value.color ?? theme.foreground
             let visible=RGBA(foreground.red,foreground.green,foreground.blue,foreground.alpha*opacity)
             let link=value.hyperlink.flatMap { hyperlink?($0) }.map { "<a:hlinkClick r:id=\"\(xml($0))\"/>" } ?? ""

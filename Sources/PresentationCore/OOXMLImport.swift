@@ -45,9 +45,10 @@ extension PowerPoint {
         if let path=rels.values.first(where: { $0.contains("commentAuthors") }) { for author in try document(path).descendants("cmAuthor") { authors[author.attr("id")]=author.attr("name") } }
         var deck=Presentation(); deck.slides=[]; deck.title=archive.deletingPathExtension().lastPathComponent
         var importedAssets: [String:Asset]=[:]
+        var masterIndices: [String:Int]=[:], layoutIdentities: [String:UUID]=[:]
         func loadAsset(_ path: String) throws -> Asset { if let cached=importedAssets[path] { return cached }; let value=Asset(name:URL(fileURLWithPath:path).lastPathComponent,data:try read(path)); importedAssets[path]=value; return value }
         if let size=root.first("sldSz") { deck.width=size.number("cx",default:12192000)/9525; deck.height=size.number("cy",default:6858000)/9525 }
-        var warnings=Set(["Imported text, shapes, pictures, tables, charts, groups, media, notes and supported transitions remain editable. Master and layout appearances are resolved into slide content; master relationships are not retained. Media playback settings and unsupported effects may need adjustment. Keep the original PowerPoint file."])
+        var warnings=Set(["Imported text, shapes, pictures, tables, charts, groups, media, notes and supported transitions remain editable. Used master and layout relationships are retained as editable document content. Media playback settings and unsupported effects may need adjustment. Keep the original PowerPoint file."])
         for ref in root.descendants("sldId") {
             guard let path=rels[ref.attr("r:id")] else { throw FormatError.invalid("missing slide relationship") }
             let source=try document(path), links=try relations(path), textLinks=try relations(path,includeHyperlinks:true)
@@ -63,14 +64,10 @@ extension PowerPoint {
             let titleFont=theme?.first("majorFont")?.first("latin")?.attr("typeface") ?? "Helvetica Neue", bodyFont=theme?.first("minorFont")?.first("latin")?.attr("typeface") ?? "Helvetica Neue"
             if deck.slides.isEmpty { deck.theme=Theme(name:theme?.attr("name") ?? "Imported",background:palette["bg1"] ?? palette["lt1"] ?? .white,foreground:palette["tx1"] ?? palette["dk1"] ?? .ink,accent:palette["accent1"] ?? .accent,fontName:bodyFont); deck.theme.chartColors=(1...6).compactMap { palette["accent\($0)"] } }
             var slide=Slide(); slide.title=source.first("cSld")?.attr("name") ?? "Slide"; slide.skipped=source.attr("show") == "0"
-            slide.background=(source.first("bg") ?? layout?.first("bg") ?? master?.first("bg"))?.officeColor(palette:palette) ?? palette["bg1"]
+            slide.background=(source.first("bg") ?? layout?.first("bg"))?.officeColor(palette:palette)
+            slide.showsMasterObjects=source.attr("showMasterSp") != "0"
             slide.transition=readTransition(source.first("transition"))
             var shapeIDs: [String:UUID]=[:], attachments: [UUID:(String,String,Int,Int)]=[:]
-            var nodes: [(XMLElement,[String:String],Bool)]=[]
-            for (owner,relationships) in [(master,masterLinks),(layout,layoutLinks)] {
-                if source.attr("showMasterSp") != "0" { nodes += (owner?.first("spTree")?.children?.compactMap { $0 as? XMLElement } ?? []).filter { $0.first("ph") == nil }.map { ($0,relationships,true) } }
-            }
-            nodes += (source.first("spTree")?.children?.compactMap { $0 as? XMLElement } ?? []).map { ($0,links,false) }
             func parseNode(_ node: XMLElement,objectLinks: [String:String],inherited: Bool,depth: Int = 0) throws -> SlideObject? {
                 guard depth < 32 else { throw FormatError.invalid("Office groups are nested too deeply") }
                 if node.localName == "grpSp" {
@@ -95,6 +92,10 @@ extension PowerPoint {
                 let map: [String:ShapeKind]=["rect":.rectangle,"roundRect":.roundedRectangle,"ellipse":.ellipse,"hexagon":.polygon,"leftRightArrow":.doubleArrow,"wedgeRoundRectCallout":.speechBubble,"triangle":.triangle,"diamond":.diamond,"star5":.star,"line":.line,"rightArrow":.arrow]
                 let isText=node.first("cNvSpPr")?.attr("txBox") == "1" || node.first("ph") != nil
                 var object=SlideObject(kind:isText ? .text : .shape,name:node.first("cNvPr")?.attr("name") ?? "Object",frame:frame)
+                if let ph=node.first("ph") {
+                    object.placeholderKey=["title","ctrTitle"].contains(ph.attr("type")) ? "title" : "placeholder:"+(ph.attr("idx").isEmpty ? ph.attr("type") : ph.attr("idx"))
+                    object.layoutLinked=node.direct("spPr")?.direct("xfrm") == nil
+                }
                 object.rotation=(transform?.number("rot") ?? 0)/60000; object.shape=map[geometry] ?? .rectangle
                 if let fill=node.first("spPr")?.direct("solidFill") ?? node.first("style")?.first("fillRef") { object.style.fill=fill.officeColor(palette:palette) }
                 if node.first("spPr")?.direct("noFill") != nil { object.style.fill=RGBA(0,0,0,0) }
@@ -134,15 +135,58 @@ extension PowerPoint {
                     else if let chart=node.first("chart"), let target=objectLinks[chart.attr("r:id")] { object.kind = .chart; object.chart=try readChart(document(target)) }
                     else { warnings.insert("An unsupported graphic was omitted."); return nil }
                 }
+                if object.placeholderKey != nil, node.direct("txBody") != nil {
+                    let explicit=node.descendants("rPr").contains { props in props.attributes?.contains(where: { $0.name != "lang" && $0.name != "dirty" }) == true || !(props.children ?? []).isEmpty }
+                    object.masterTextLinked = !explicit
+                    if !explicit { object.textRuns=nil }
+                }
                 return object
             }
-            for (node,objectLinks,inherited) in nodes { if let object=try parseNode(node,objectLinks:objectLinks,inherited:inherited) { slide.objects.append(object) } }
             func connect(_ objects: inout [SlideObject]) {
                 for i in objects.indices {
                     if let (start,end,s,e)=attachments[objects[i].id] { let anchors: [ConnectionAnchor]=[.top,.left,.bottom,.right]; objects[i].connector?.start.objectID=shapeIDs[start]; objects[i].connector?.end.objectID=shapeIDs[end]; objects[i].connector?.start.anchor=anchors[max(0,min(3,s))]; objects[i].connector?.end.anchor=anchors[max(0,min(3,e))] }
                     connect(&objects[i].children)
                 }
             }; connect(&slide.objects)
+            func parseObjects(_ owner: XMLElement,relationships: [String:String],templates: Bool = false,masterObjects: Bool = false) throws -> [SlideObject] {
+                shapeIDs=[:]; attachments=[:]; var result: [SlideObject]=[]
+                for node in owner.first("spTree")?.children?.compactMap({ $0 as? XMLElement }) ?? [] {
+                    if masterObjects && node.first("ph") != nil { continue }
+                    if var object=try parseNode(node,objectLinks:relationships,inherited:false) {
+                        if templates && object.placeholderKey != nil { object.text=""; object.textRuns=nil; object.layoutLinked=false }
+                        result.append(object)
+                    }
+                }
+                connect(&result); return result
+            }
+            if let masterPath, let master {
+                let masterIndex: Int
+                if let index=masterIndices[masterPath] { masterIndex=index }
+                else {
+                    var value=SlideMaster(); value.name=master.first("cSld")?.attr("name") ?? "Imported Master"
+                    value.background=master.first("bg")?.officeColor(palette:palette) ?? palette["bg1"]
+                    value.objects=try parseObjects(master,relationships:masterLinks,masterObjects:true)
+                    func font(_ title: Bool) -> TextStyle {
+                        var value=TextStyle(); value.fontName=title ? titleFont : bodyFont; value.size=title ? 48 : 30
+                        if let props=master.first("txStyles")?.direct(title ? "titleStyle" : "bodyStyle")?.first("defRPr") {
+                            if props.number("sz") > 0 { value.size=props.number("sz")/75 }; value.bold=props.attr("b") == "1"; value.italic=props.attr("i") == "1"; value.color=props.officeColor(palette:palette)
+                            if let name=props.first("latin")?.attr("typeface"), !name.hasPrefix("+"), !name.isEmpty { value.fontName=name }
+                        }; return value
+                    }
+                    value.titleFont=font(true); value.bodyFont=font(false)
+                    if deck.masters == nil { deck.masters=[] }; masterIndex=deck.masters!.count; deck.masters?.append(value); masterIndices[masterPath]=masterIndex
+                }
+                slide.masterID=deck.masters![masterIndex].id
+                if let layoutPath, let layout {
+                    if let id=layoutIdentities[layoutPath] { slide.layoutID=id }
+                    else {
+                        let objects=try parseObjects(layout,relationships:layoutLinks,templates:true)
+                        let value=MasterLayout(name:layout.first("cSld")?.attr("name") ?? "Imported Layout",objects:objects)
+                        deck.masters?[masterIndex].layouts.append(value); layoutIdentities[layoutPath]=value.id; slide.layoutID=value.id
+                    }
+                }
+            }
+            slide.objects=try parseObjects(source,relationships:links)
             if let commentsPath=links.values.first(where: { $0.contains("comments/") }) { slide.comments=readComments(try document(commentsPath),authors:authors,ids:shapeIDs) }
             let animationImport=readAnimations(source,ids:shapeIDs,objects:slide.objects,width:deck.width,height:deck.height)
             slide.animations=animationImport.0.isEmpty ? nil : animationImport.0

@@ -34,8 +34,8 @@ public extension Presentation {
         guard let master=master(for:slide) else { return slide.resolvingConnectors() }
         var resolved=slide
         resolved.background=slide.background ?? master.background
-        var inherited=master.objects
-        if let layout=master.layouts.first(where: { $0.id == slide.layoutID }) { inherited += layout.objects }
+        var inherited=slide.showsMasterObjects == false ? [] : master.objects
+        if slide.showsMasterObjects != false, let layout=master.layouts.first(where: { $0.id == slide.layoutID }) { inherited += layout.objects }
         let overrides=Set(slide.objects.compactMap(\.placeholderKey))
         inherited.removeAll { $0.placeholderKey.map(overrides.contains) ?? false }
         resolved.objects=inherited+slide.objects

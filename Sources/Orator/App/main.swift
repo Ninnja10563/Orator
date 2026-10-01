@@ -55,6 +55,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     var comment=Comment(text:"Review the animation sequence",author:"Orator QA"); comment.addReply("Checked all effects",author:"Reviewer"); compatibility.slides[0].comments=[comment]
                     var motion=Slide(); let target=SlideObject(kind:.shape,name:"Animated object",frame:Rect(100,100,200,120)); motion.objects=[target]
                     motion.animations=AnimationEffect.allCases.enumerated().map { index,effect in var animation=ObjectAnimation(objectID:target.id,effect:effect); animation.start=AnimationStart.allCases[index%3]; animation.path=[Point(200,160),Point(500,400),Point(900,200)]; animation.curvedPath=true; return animation }; compatibility.slides.append(motion)
+                    var officeMaster=SlideMaster(); officeMaster.name="Compatibility master"; var placeholder=SlideObject(kind:.text,name:"Layout title",frame:Rect(100,100,900,100)); placeholder.placeholderKey="title"; let officeLayout=MasterLayout(name:"Linked title",objects:[placeholder]); officeMaster.layouts=[officeLayout]
+                    var linked=Slide(); linked.masterID=officeMaster.id; linked.layoutID=officeLayout.id; var title=placeholder.duplicated(offset:Point()); title.text="Master-linked title"; title.layoutLinked=true; title.masterTextLinked=true; linked.objects=[title]
+                    compatibility.masters=(compatibility.masters ?? [])+[officeMaster]; compatibility.slides.append(linked)
                     _=try PowerPoint.export(compatibility,to:url.deletingLastPathComponent().appendingPathComponent("compatibility.pptx"))
                     if let view=editor.window?.contentView?.superview {
                         view.layoutSubtreeIfNeeded()
