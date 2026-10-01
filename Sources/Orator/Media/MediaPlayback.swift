@@ -41,10 +41,33 @@ final class MediaPlayback {
         if !FileManager.default.fileExists(atPath:url.path) { try asset.data.write(to:url,options:.atomic) }
         return url
     }
+    /// Flatten group transforms for native video layers while retaining each leaf's identity.
+    static func playbackObjects(_ objects: [SlideObject]) -> [SlideObject] {
+        objects.flatMap { object -> [SlideObject] in
+            guard object.kind == .group else { return [object] }
+            return playbackObjects(object.children).map { child in
+                var result=child
+                let angle=object.rotation*Double.pi/180
+                let dx=child.frame.midX-object.frame.midX, dy=child.frame.midY-object.frame.midY
+                result.frame.x=object.frame.midX+dx*cos(angle)-dy*sin(angle)-child.frame.width/2
+                result.frame.y=object.frame.midY+dx*sin(angle)+dy*cos(angle)-child.frame.height/2
+                result.rotation += object.rotation; result.opacity *= object.opacity; result.hidden = result.hidden || object.hidden
+                return result
+            }
+        }
+    }
+    private func position(_ view: AVPlayerView,object: SlideObject,deck: Presentation,rect: NSRect) {
+        view.layer?.setAffineTransform(.identity)
+        view.frame=NSRect(x:rect.minX+object.frame.x*rect.width/deck.width,y:rect.minY+object.frame.y*rect.height/deck.height,width:object.frame.width*rect.width/deck.width,height:object.frame.height*rect.height/deck.height)
+        view.alphaValue=object.hidden ? 0 : object.opacity
+        view.layer?.anchorPoint=CGPoint(x:0.5,y:0.5)
+        view.layer?.position=CGPoint(x:view.frame.midX,y:view.frame.midY)
+        view.layer?.setAffineTransform(CGAffineTransform(rotationAngle:object.rotation*Double.pi/180))
+    }
     func install(slide: Slide, deck: Presentation, in parent: NSView, rect: NSRect, forceAutoplay: Bool = false) throws {
         stop(keepingBackground:true)
         var aboveVideo=false
-        for object in deck.resolved(slide).objects where !object.hidden {
+        for object in Self.playbackObjects(deck.resolved(slide).objects) where !object.hidden {
             guard let content=object.media else {
                 if aboveVideo { let overlay=MediaForegroundView(object:object,deck:deck,rect:rect,frame:parent.bounds); parent.addSubview(overlay); foreground.append(overlay) }; continue
             }
@@ -53,7 +76,7 @@ final class MediaPlayback {
             let player=AVPlayer(url:try assetURL(content.assetID,deck:deck)); player.volume=Float(content.volume)
             let view=AVPlayerView(); view.player=player; view.controlsStyle = .inline; view.showsFullScreenToggleButton=false
             view.wantsLayer=true; view.layer?.opacity=Float(object.opacity); view.setAccessibilityLabel(object.name)
-            view.frame=NSRect(x:rect.minX+object.frame.x*rect.width/deck.width,y:rect.minY+object.frame.y*rect.height/deck.height,width:object.frame.width*rect.width/deck.width,height:object.frame.height*rect.height/deck.height)
+            position(view,object:object,deck:deck,rect:rect)
             if object.kind == .video || !content.autoplay { parent.addSubview(view) }
             let lifetime=PlaybackLifetime(); lifetime.autoplay=content.autoplay || forceAutoplay
             func atEnd() {
@@ -78,11 +101,10 @@ final class MediaPlayback {
         }
     }
     func layout(slide: Slide, deck: Presentation, rect: NSRect) {
-        let objects=deck.resolved(slide).objects
+        let objects=Self.playbackObjects(deck.resolved(slide).objects)
         for entry in entries {
             guard let o=objects.first(where: { $0.id == entry.objectID }) else { continue }
-            entry.view.frame=NSRect(x:rect.minX+o.frame.x*rect.width/deck.width,y:rect.minY+o.frame.y*rect.height/deck.height,width:o.frame.width*rect.width/deck.width,height:o.frame.height*rect.height/deck.height)
-            entry.view.alphaValue=o.hidden ? 0 : o.opacity
+            position(entry.view,object:o,deck:deck,rect:rect)
         }
         for overlay in foreground { if let object=objects.first(where: { $0.id == overlay.object.id }) { if overlay.object != object || overlay.slideRect != rect { overlay.object=object; overlay.slideRect=rect; overlay.needsDisplay=true } } }
     }

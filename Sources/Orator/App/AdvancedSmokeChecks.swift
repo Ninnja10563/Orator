@@ -74,6 +74,10 @@ func checkAdvancedEditing(_ editor: EditorWindowController) throws {
         let image=SlideRenderer.shared.thumbnail(slide:slide,deck:deck,size:NSSize(width:640,height:320))
         if let data=image.tiffRepresentation, let bitmap=NSBitmapImageRep(data:data) { try bitmap.representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:output).deletingLastPathComponent().appendingPathComponent("list-rendering.png")) }
     }
+    var mediaGroup=SlideObject(kind:.group,name:"Media group",frame:Rect(0,0,100,100)); mediaGroup.rotation=90; mediaGroup.opacity=0.5
+    mediaGroup.children=[SlideObject(kind:.video,name:"Nested movie",frame:Rect(60,40,20,20))]
+    let flattened=MediaPlayback.playbackObjects([mediaGroup])
+    guard flattened.count == 1, abs(flattened[0].frame.x-40) < 0.01, abs(flattened[0].frame.y-60) < 0.01, flattened[0].rotation == 90, flattened[0].opacity == 0.5 else { fatalError("Grouped media transforms failed") }
     try checkMediaPlayback()
     document.deck=original; document.undoManager?.removeAllActions(); editor.editingMasterID=nil; editor.editingLayoutID=nil; editor.editingGroupIDs=[]; editor.selectedSlideID=original.slides[0].id; editor.canvas.selected=[]; editor.refresh(); editor.window?.makeKeyAndOrderFront(nil)
     print("Advanced AppKit checks: table cells/undo, chart series, crop geometry, master layouts, and AVFoundation playback passed")
