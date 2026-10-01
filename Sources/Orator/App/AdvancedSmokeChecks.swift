@@ -86,6 +86,13 @@ func checkAdvancedEditing(_ editor: EditorWindowController) throws {
     mediaGroup.children=[SlideObject(kind:.video,name:"Nested movie",frame:Rect(60,40,20,20))]
     let flattened=MediaPlayback.playbackObjects([mediaGroup])
     guard flattened.count == 1, abs(flattened[0].frame.x-40) < 0.01, abs(flattened[0].frame.y-60) < 0.01, flattened[0].rotation == 90, flattened[0].opacity == 0.5 else { fatalError("Grouped media transforms failed") }
+    var backgroundFinished=false
+    DocumentTask.run(title:"Checking background file operations…",window:editor.window,operation: { () -> Bool in !Thread.isMainThread },completion: { result in
+        guard Thread.isMainThread, (try? result.get()) == true else { fatalError("Document work blocked the UI thread") }; backgroundFinished=true
+    })
+    let backgroundDeadline=Date().addingTimeInterval(5)
+    while !backgroundFinished && Date() < backgroundDeadline { RunLoop.current.run(until:Date().addingTimeInterval(0.02)) }
+    guard backgroundFinished else { fatalError("Background file completion was not delivered") }
     try checkMediaPlayback()
     document.deck=original; document.undoManager?.removeAllActions(); editor.editingMasterID=nil; editor.editingLayoutID=nil; editor.editingGroupIDs=[]; editor.selectedSlideID=original.slides[0].id; editor.canvas.selected=[]; editor.refresh(); editor.window?.makeKeyAndOrderFront(nil)
     print("Advanced AppKit checks: table cells/undo, chart series, crop geometry, master layouts, and AVFoundation playback passed")

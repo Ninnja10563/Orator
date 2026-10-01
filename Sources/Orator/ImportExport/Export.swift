@@ -8,12 +8,14 @@ extension EditorWindowController {
         canvas.finishText(); let panel=NSSavePanel(); panel.allowedContentTypes=[UTType(filenameExtension:"pptx")!]; panel.nameFieldStringValue="\(presentation.displayName ?? "Presentation").pptx"
         panel.beginSheetModal(for:window!) { [weak self] response in
             guard response == .OK, let self=self, let url=panel.url else { return }
-            do {
-                var deck=self.presentation.deck
+            let snapshot=self.presentation.snapshot
+            DocumentTask.run(title:"Exporting PowerPoint…",window:self.window,operation: {
+                var deck=snapshot
+                let renderer=SlideRenderer()
                 func prepare(_ originals: [SlideObject]) -> [SlideObject] {
                     originals.map { sourceObject in
                         var object=sourceObject
-                        if object.kind == .image, var content=object.image, let source=SlideRenderer.shared.image(content.assetID,in:deck) {
+                        if object.kind == .image, var content=object.image, let source=renderer.image(content.assetID,in:deck) {
                             let crop=content.crop, sourceWidth=source.size.width*crop.width, sourceHeight=source.size.height*crop.height, f=object.frame
                             if content.fill { let ratio=max(f.width/sourceWidth,f.height/sourceHeight); let width=f.width/ratio/source.size.width, height=f.height/ratio/source.size.height; content.crop=Rect(crop.midX-width/2,crop.midY-height/2,width,height); object.image=content }
                             else { let ratio=min(f.width/sourceWidth,f.height/sourceHeight); object.frame=Rect(f.midX-sourceWidth*ratio/2,f.midY-sourceHeight*ratio/2,sourceWidth*ratio,sourceHeight*ratio); object.layoutLinked=false }
@@ -26,9 +28,15 @@ extension EditorWindowController {
                 for id in Array(deck.assets.keys) {
                     if let asset=deck.assets[id], let image=NSImage(data:asset.data), let tiff=image.tiffRepresentation, let rep=NSBitmapImageRep(data:tiff), let png=rep.representation(using:.png,properties:[:]) { deck.assets[id]?.data=png }
                 }
-                let warnings=try PowerPoint.export(deck,to:url)
-                if !warnings.isEmpty { let alert=NSAlert(); alert.messageText="PowerPoint export report"; alert.informativeText=warnings.joined(separator:"\n"); alert.beginSheetModal(for:self.window!) }
-            } catch { self.presentation.presentError(error) }
+                return try PowerPoint.export(deck,to:url)
+            },completion: { [weak self] result in
+                guard let self else { return }
+                switch result {
+                case .success(let warnings):
+                    if !warnings.isEmpty { let alert=NSAlert(); alert.messageText="PowerPoint export report"; alert.informativeText=warnings.joined(separator:"\n"); if let window=self.window { alert.beginSheetModal(for:window) } }
+                case .failure(let error):self.presentation.presentError(error)
+                }
+            })
         }
     }
 }

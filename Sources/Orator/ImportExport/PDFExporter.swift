@@ -4,6 +4,7 @@ import PresentationCore
 
 enum PDFExporter {
     static func data(_ deck: Presentation,includeNotes: Bool = false) throws -> Data {
+        let renderer=SlideRenderer()
         let output=NSMutableData(); guard let consumer=CGDataConsumer(data:output) else { throw FormatError.invalid("could not create PDF") }
         var box=CGRect(x:0,y:0,width:deck.width,height:deck.height)
         guard let context=CGContext(consumer:consumer,mediaBox:&box,nil) else { throw FormatError.invalid("could not create PDF context") }
@@ -14,7 +15,7 @@ enum PDFExporter {
             NSGraphicsContext.restoreGraphicsState(); context.restoreGState(); context.endPDFPage()
         }
         for (index,slide) in deck.slides.enumerated() {
-            if !includeNotes { page { SlideRenderer.shared.draw(slide:slide,deck:deck,in:box) }; continue }
+            if !includeNotes { page { renderer.draw(slide:slide,deck:deck,in:box) }; continue }
             let fontSize=max(10,min(22,deck.width/58)), margin=max(16,deck.width*0.045)
             let text=NSTextStorage(string:slide.notes,attributes:[.font:NSFont.systemFont(ofSize:fontSize),.foregroundColor:NSColor.black])
             let layout=NSLayoutManager(); layout.backgroundLayoutEnabled=false; text.addLayoutManager(layout)
@@ -26,7 +27,7 @@ enum PDFExporter {
                 let range=layout.glyphRange(for:container)
                 page {
                     ("\(index+1)  \(slide.title)"+(first ? "" : " — Notes continued") as NSString).draw(at:NSPoint(x:margin,y:margin),withAttributes:[.font:NSFont.boldSystemFont(ofSize:fontSize),.foregroundColor:NSColor.black])
-                    if first { let width=previewHeight*deck.width/deck.height; SlideRenderer.shared.draw(slide:slide,deck:deck,in:NSRect(x:(deck.width-width)/2,y:margin+headerHeight,width:width,height:previewHeight)) }
+                    if first { let width=previewHeight*deck.width/deck.height; renderer.draw(slide:slide,deck:deck,in:NSRect(x:(deck.width-width)/2,y:margin+headerHeight,width:width,height:previewHeight)) }
                     layout.drawGlyphs(forGlyphRange:range,at:NSPoint(x:margin,y:y))
                 }
                 first=false; let previous=end; end=NSMaxRange(range)
@@ -42,7 +43,7 @@ extension EditorWindowController {
         canvas.finishText(); let deck=presentation.snapshot, panel=NSSavePanel(); panel.allowedContentTypes=[.pdf]; panel.nameFieldStringValue=(presentation.displayName ?? "Presentation")+(includeNotes ? " — Notes.pdf" : ".pdf")
         panel.beginSheetModal(for:window!) { [weak self] response in
             guard response == .OK, let url=panel.url else { return }
-            do { try PDFExporter.data(deck,includeNotes:includeNotes).write(to:url,options:.atomic) } catch { self?.presentation.presentError(error) }
+            DocumentTask.run(title:includeNotes ? "Exporting Speaker Notes…" : "Exporting PDF…",window:self?.window,operation: { try PDFExporter.data(deck,includeNotes:includeNotes).write(to:url,options:.atomic) },completion: { [weak self] result in if case .failure(let error)=result { self?.presentation.presentError(error) } })
         }
     }
 }

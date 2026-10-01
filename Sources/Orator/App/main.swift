@@ -152,9 +152,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func importPPTX(_ sender: Any?) {
         let panel=NSOpenPanel(); panel.allowedContentTypes=[.init(filenameExtension:"pptx")!]
         guard panel.runModal() == .OK, let url=panel.url else { return }
-        do { let result=try PowerPoint.importDeck(from:url); let document=PresentationDocument(); document.deck=result.deck; NSDocumentController.shared.addDocument(document); document.makeWindowControllers(); document.showWindows(); document.updateChangeCount(.changeDone)
-            if !result.warnings.isEmpty { let alert=NSAlert(); alert.messageText="PowerPoint import report"; alert.informativeText=result.warnings.joined(separator:"\n"); alert.runModal() }
-        } catch { NSApp.presentError(error) }
+        DocumentTask.run(title:"Importing PowerPoint…",window:NSApp.keyWindow,operation: { try PowerPoint.importDeck(from:url) },completion: { result in
+            switch result {
+            case .success(let result):
+                let document=PresentationDocument(); document.deck=result.deck; NSDocumentController.shared.addDocument(document); document.makeWindowControllers(); document.showWindows(); document.updateChangeCount(.changeDone)
+                if !result.warnings.isEmpty, let window=document.windowControllers.first?.window { let alert=NSAlert(); alert.messageText="PowerPoint import report"; alert.informativeText=result.warnings.joined(separator:"\n"); alert.beginSheetModal(for:window) }
+            case .failure(let error):NSApp.presentError(error)
+            }
+        })
     }
 }
 let application=NSApplication.shared
