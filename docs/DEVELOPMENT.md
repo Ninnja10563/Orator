@@ -26,12 +26,12 @@ Large image/media documents still incur JSON encoding and embedded-data overhead
 
 - Structured slides, groups, content styles, assets, comments, masters/layouts and optional animation/media fields.
 - Object selection/transforms, slide operations, geometry/snapping, nested group editing and clipboard undo.
-- Attributed text persistence and selection-format undo/redo; active text serialization inside groups.
+- Attributed text persistence and selection-format undo/redo; active text serialization inside groups; visible numbered/bulleted lists, continuation and nesting.
 - Table cell editing/undo, dimensions/merges, multi-series charts and non-destructive crop geometry.
 - Master layout editing, inherited geometry/typography and local overrides.
 - Animation scheduling/evaluation, Continuity matching, presenter input and pause/advance behavior.
 - Real AVFoundation audio playback, pause/resume and cleanup using a generated audio fixture.
-- Native document reopening, independent recovery snapshots and a 500-slide serialization regression.
+- Native document reopening, independent recovery snapshots and a 500-slide serialization regression. A separate process is forcibly killed during active editing, then a fresh process verifies recovery as a labeled independent document.
 - PDF speaker-note pagination and native print-operation creation.
 - PPTX fixtures from an independent producer; editable tables/charts/groups, font units, theme/layout inheritance, attached connectors and transition settings.
 - Export validation with python-pptx and Microsoft's Open XML SDK, including embedded XLSX chart data.
@@ -42,8 +42,8 @@ CI artifacts provide the exact app archive and captures associated with each com
 ## Remaining acceptance and engineering work
 
 1. **Interactive macOS acceptance:** VoiceOver navigation and announcements, keyboard-only authoring, real trackpad interactions, multiple displays, native printing on actual printers, and foreground-removal inference on representative photographs.
-2. **Scale and reliability:** measured frame/interaction latency on M1 through newer chips; stress documents with many large assets; memory-pressure tests; kill/power-loss recovery fault injection and save migration tests.
-3. **Text and content depth:** list rendering and continuation acceptance, richer per-cell text, media within transformed groups, connector endpoint dragging, advanced shape adjustments and curved motion paths.
+2. **Scale and reliability:** measured frame/interaction latency on M1 through newer chips; stress documents with many large assets; memory-pressure tests; power-loss and mid-write fault injection and save migration tests.
+3. **Text and content depth:** richer per-cell text, physical video playback checks in rotated groups, advanced shape adjustments and additional curve controls.
 4. **Interoperability:** GUI round trips against PowerPoint/Keynote and Google Slides; fixture corpus expansion; retained master relationships, OOXML object animations, comments and advanced media settings. Keep explicit compatibility reporting.
 5. **Collaboration:** current stable IDs, serializable operations and offline comments are foundations only. Durable revision journals, conflict semantics, presence and a synchronization transport remain unimplemented. There is no simulated collaboration UI.
 6. **Distribution:** production signing, notarization, update policy, installer/release acceptance and support documentation. Ad-hoc CI builds are development previews.

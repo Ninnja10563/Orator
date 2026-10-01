@@ -1,6 +1,6 @@
 # Orator
 
-A native macOS presentation editor built with Swift and AppKit for Apple Silicon and macOS 14 or later. **Development preview** — substantial editing and presentation workflows are implemented; this is not yet a production-certified replacement for PowerPoint or Keynote. No web runtime, cloud account or external AI service is required.
+A native macOS presentation editor built with Swift and AppKit for Apple Silicon and macOS 14 or later. **0.2.0 — development preview** — substantial editing and presentation workflows are implemented; this is not yet a production-certified replacement for PowerPoint or Keynote. No web runtime, cloud account or external AI service is required.
 
 ## Build and run
 
@@ -48,7 +48,7 @@ Versioned `.orator` documents preserve the complete native model. NSDocument sup
 
 The [macOS workflow](.github/workflows/macos.yml) builds the arm64 app, runs core regression tests, launches the bundled app, exercises native editing/undo/save/presentation/media behavior, and captures light/dark workspaces and content editors. Independent python-pptx checks and Microsoft's Open XML SDK validate exported presentations and embedded chart workbooks. Tests include an independent PowerPoint fixture, theme/layout inheritance, nested groups, rich text, malformed input, recovery and a 500-slide document.
 
-Hands-on VoiceOver, multiple-display, Vision inference and large-deck performance acceptance remain necessary. Real-time collaboration, curved motion paths, full OOXML animation fidelity and production signing/notarization are not complete. See the [implementation status and acceptance plan](docs/DEVELOPMENT.md) for precise boundaries.
+Hands-on VoiceOver, multiple-display, Vision inference and large-deck performance acceptance remain necessary. Real-time collaboration, full OOXML animation fidelity and production signing/notarization are not complete. See the [implementation status and acceptance plan](docs/DEVELOPMENT.md) for precise boundaries.
 
 ## Editing shortcuts
 
@@ -62,6 +62,7 @@ Hands-on VoiceOver, multiple-display, Vision inference and large-deck performanc
 | Disable snapping for a drag | Hold Option |
 | Constrain resize/rotation | Hold Shift |
 | Group / ungroup | Command–Option–G / add Shift |
+| Nest / unnest a list item | Tab / Shift–Tab while editing a list |
 | Edit / leave a group | Double-click group / Escape |
 | Duplicate objects | Command–D |
 | Fit slide | Command–0 |

@@ -7,9 +7,9 @@ func checkEditingInteractions(_ editor: EditorWindowController) throws {
     guard let window=editor.window else { fatalError("Editor window missing") }
     let original=editor.currentSlide
     canvas.selected=[]
-    func event(_ type: NSEvent.EventType,_ point: Point) -> NSEvent {
+    func event(_ type: NSEvent.EventType,_ point: Point,_ modifiers: NSEvent.ModifierFlags = [.option]) -> NSEvent {
         let local=NSPoint(x:canvas.slideRect.minX+point.x*canvas.scale,y:canvas.slideRect.minY+point.y*canvas.scale)
-        return NSEvent.mouseEvent(with:type,location:canvas.convert(local,to:nil),modifierFlags:[.option],timestamp:ProcessInfo.processInfo.systemUptime,windowNumber:window.windowNumber,context:nil,eventNumber:1,clickCount:1,pressure:1)!
+        return NSEvent.mouseEvent(with:type,location:canvas.convert(local,to:nil),modifierFlags:modifiers,timestamp:ProcessInfo.processInfo.systemUptime,windowNumber:window.windowNumber,context:nil,eventNumber:1,clickCount:1,pressure:1)!
     }
     document.undoManager?.beginUndoGrouping()
     canvas.mouseDown(with:event(.leftMouseDown,Point(100,90)))
@@ -46,6 +46,21 @@ func checkEditingInteractions(_ editor: EditorWindowController) throws {
     editor.toggleNotes(nil); editor.toggleNotes(nil)
     editor.fitSlide(nil)
     canvas.selected=[]
+
+    var connector=SlideObject(kind:.shape,name:"Connector interaction",frame:Rect(100,500,500,1)); connector.connector=Connector(start:ConnectorEndpoint(point:Point(100,500)),end:ConnectorEndpoint(point:Point(600,500)))
+    document.undoManager?.beginUndoGrouping(); editor.insert(connector); document.undoManager?.endUndoGrouping()
+    document.undoManager?.beginUndoGrouping()
+    canvas.mouseDown(with:event(.leftMouseDown,Point(100,500))); canvas.mouseDragged(with:event(.leftMouseDragged,Point(130,530))); canvas.mouseUp(with:event(.leftMouseUp,Point(130,530)))
+    document.undoManager?.endUndoGrouping()
+    guard editor.currentSlide.objects.last?.connector?.start.point == Point(130,530) else { fatalError("Connector endpoint drag failed") }
+    document.undoManager?.undo()
+    guard editor.currentSlide.objects.last?.connector?.start.point == Point(100,500) else { fatalError("Connector endpoint undo failed") }
+    let target=original.objects[0], anchor=ConnectionAnchor.right.point(on:original.objects[0])
+    document.undoManager?.beginUndoGrouping()
+    canvas.mouseDown(with:event(.leftMouseDown,Point(600,500),[])); canvas.mouseDragged(with:event(.leftMouseDragged,anchor,[])); canvas.mouseUp(with:event(.leftMouseUp,anchor,[]))
+    document.undoManager?.endUndoGrouping()
+    guard editor.currentSlide.objects.last?.connector?.end.objectID == target.id else { fatalError("Connector attachment snapping failed") }
+    document.undoManager?.undo(); document.undoManager?.undo(); canvas.selected=[]
 
     var deck=document.deck
     let second=Layout.section.makeSlide(); deck.slides.append(second)
