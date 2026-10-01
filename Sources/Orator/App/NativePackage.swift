@@ -43,7 +43,7 @@ final class NativePackage {
             guard let length=manifest.lengths[id], (0...100*1024*1024).contains(length), let hash=manifest.hashes[id],
                   let asset=assets.fileWrappers?[id.uuidString+".bin"], asset.isRegularFile else { throw FormatError.invalid("missing or invalid package asset") }
             total += length; guard total <= 2_000_000_000 else { throw FormatError.invalid("native package exceeds the in-memory document limit") }
-            if let size=asset.fileAttributes[.size] as? NSNumber, size.intValue != length { throw FormatError.invalid("asset size differs from its manifest") }
+            if let size=asset.fileAttributes[FileAttributeKey.size.rawValue] as? NSNumber, size.intValue != length { throw FormatError.invalid("asset size differs from its manifest") }
             guard let bytes=asset.regularFileContents, bytes.count == length, digest(bytes) == hash else { throw FormatError.invalid("asset checksum failed; the package may be incomplete or damaged") }
             deck.assets[id]?.data=bytes; restored[id]=CachedAsset(data:bytes,hash:hash,wrapper:asset)
         }
