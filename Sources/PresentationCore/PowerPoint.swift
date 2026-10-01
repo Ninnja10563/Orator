@@ -88,7 +88,7 @@ public enum PowerPoint {
                     rels += relationship(rid,"chart","../charts/\(name).xml")
                     return "<p:graphicFrame><p:nvGraphicFramePr>\(nv)<p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x=\"\(emu(o.frame.x))\" y=\"\(emu(o.frame.y))\"/><a:ext cx=\"\(emu(o.frame.width))\" cy=\"\(emu(o.frame.height))\"/></p:xfrm><a:graphic><a:graphicData uri=\"\(chartNS)\"><c:chart xmlns:c=\"\(chartNS)\" r:id=\"\(rid)\"/></a:graphicData></a:graphic></p:graphicFrame>"
                 }
-                let shapes: [ShapeKind:String]=[.rectangle:"rect",.roundedRectangle:"roundRect",.ellipse:"ellipse",.triangle:"triangle",.diamond:"diamond",.star:"star5",.line:"line",.arrow:"rightArrow"]
+                let shapes: [ShapeKind:String]=[.rectangle:"rect",.roundedRectangle:"roundRect",.ellipse:"ellipse",.circle:"ellipse",.polygon:"hexagon",.doubleArrow:"leftRightArrow",.speechBubble:"wedgeRoundRectCallout",.triangle:"triangle",.diamond:"diamond",.star:"star5",.line:"line",.arrow:"rightArrow"]
                 let style=o.kind == .text ? "<a:noFill/><a:ln><a:noFill/></a:ln>" : solid(o.style.fill ?? deck.theme.accent)+"<a:ln w=\"\(emu(o.style.strokeWidth))\">\(solid(o.style.stroke))</a:ln>"
                 return "<p:sp><p:nvSpPr>\(nv)<p:cNvSpPr txBox=\"\(o.kind == .text ? 1 : 0)\"/><p:nvPr/></p:nvSpPr><p:spPr>\(xfrm(o))<a:prstGeom prst=\"\(shapes[o.shape] ?? "rect")\"><a:avLst/></a:prstGeom>\(style)</p:spPr><p:txBody><a:bodyPr wrap=\"square\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\"/><a:lstStyle/>\(paragraphs(o.text,style:o.textStyle,theme:deck.theme,runs:o.textRuns,hyperlink:{ target in hyperlinkNumber += 1; let id="rIdLink\(hyperlinkNumber)"; rels += "<Relationship Id=\"\(id)\" Type=\"\(r)/hyperlink\" Target=\"\(xml(target))\" TargetMode=\"External\"/>"; return id }))</p:txBody></p:sp>"
             }
@@ -196,7 +196,7 @@ public enum PowerPoint {
                 let transform=node.first("xfrm"), off=transform?.first("off"), ext=transform?.first("ext")
                 let frame=Rect((off?.number("x") ?? 0)/9525,(off?.number("y") ?? 0)/9525,max(1,(ext?.number("cx",default:2857500) ?? 2857500)/9525),max(1,(ext?.number("cy",default:952500) ?? 952500)/9525))
                 let geometry=node.first("prstGeom")?.attr("prst") ?? "rect"
-                let map: [String:ShapeKind]=["rect":.rectangle,"roundRect":.roundedRectangle,"ellipse":.ellipse,"triangle":.triangle,"diamond":.diamond,"star5":.star,"line":.line,"rightArrow":.arrow]
+                let map: [String:ShapeKind]=["rect":.rectangle,"roundRect":.roundedRectangle,"ellipse":.ellipse,"hexagon":.polygon,"leftRightArrow":.doubleArrow,"wedgeRoundRectCallout":.speechBubble,"triangle":.triangle,"diamond":.diamond,"star5":.star,"line":.line,"rightArrow":.arrow]
                 let isText=node.first("cNvSpPr")?.attr("txBox") == "1" || node.first("ph") != nil
                 var object=SlideObject(kind:isText ? .text : .shape,name:node.first("cNvPr")?.attr("name") ?? "Object",frame:frame)
                 object.rotation=(transform?.number("rot") ?? 0)/60000; object.shape=map[geometry] ?? .rectangle

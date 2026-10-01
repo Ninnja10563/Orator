@@ -25,7 +25,7 @@ public struct RGBA: Codable, Equatable, Sendable {
     public static let accent = RGBA(0.17,0.34,0.78)
 }
 public enum ShapeKind: String, Codable, CaseIterable, Sendable {
-    case rectangle, roundedRectangle, ellipse, triangle, diamond, star, line, arrow
+    case rectangle, roundedRectangle, circle, ellipse, triangle, diamond, polygon, star, line, arrow, doubleArrow, speechBubble
 }
 public enum ObjectKind: String, Codable, Sendable { case text, shape, image, table, chart, group, video, audio }
 public enum TextAlignment: String, Codable, CaseIterable, Sendable { case left, center, right, justified }
@@ -50,6 +50,9 @@ public struct ObjectStyle: Codable, Equatable, Sendable {
     public var stroke = RGBA(0,0,0,0)
     public var strokeWidth: Double = 0
     public var cornerRadius: Double = 16
+    public var borderPattern: BorderPattern? = nil
+    public var gradient: GradientFill? = nil
+    public var shadow: ObjectShadow? = nil
     public init() {}
 }
 public enum ImageMask: String, Codable, CaseIterable, Sendable { case rectangle, roundedRectangle, ellipse }
