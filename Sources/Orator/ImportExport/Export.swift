@@ -9,7 +9,7 @@ extension EditorWindowController {
         panel.beginSheetModal(for:window!) { [weak self] response in
             guard response == .OK, let self=self, let url=panel.url else { return }
             let snapshot=self.presentation.snapshot
-            DocumentTask.run(title:"Exporting PowerPoint…",window:self.window,operation: {
+            DocumentTask.run(title:"Exporting PowerPoint…",window:self.window,operation: { () throws -> [String] in
                 var deck=snapshot
                 let renderer=SlideRenderer()
                 func prepare(_ originals: [SlideObject]) -> [SlideObject] {
@@ -29,7 +29,7 @@ extension EditorWindowController {
                     if let asset=deck.assets[id], let image=NSImage(data:asset.data), let tiff=image.tiffRepresentation, let rep=NSBitmapImageRep(data:tiff), let png=rep.representation(using:.png,properties:[:]) { deck.assets[id]?.data=png }
                 }
                 return try PowerPoint.export(deck,to:url)
-            },completion: { [weak self] result in
+            },completion: { [weak self] (result: Result<[String],Error>) in
                 guard let self else { return }
                 switch result {
                 case .success(let warnings):

@@ -66,7 +66,7 @@ final class PresenterAnnotationView: NSView {
     required init?(coder: NSCoder) { fatalError() }
     override var isFlipped: Bool { true }
     override func draw(_ dirtyRect: NSRect) { audience?.drawAnnotations() }
-    override func hitTest(_ point: NSPoint) -> NSView? { (audience?.inkTool ?? .none) == .none ? nil : self }
+    override func hitTest(_ point: NSPoint) -> NSView? { (audience?.inkTool ?? AudienceView.InkTool.none) == AudienceView.InkTool.none ? nil : self }
     override func mouseDown(with event: NSEvent) { audience?.mouseDown(with:event) }
     override func mouseDragged(with event: NSEvent) { audience?.mouseDragged(with:event) }
 }
