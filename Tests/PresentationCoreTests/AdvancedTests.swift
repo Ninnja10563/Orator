@@ -70,3 +70,33 @@ extension AdvancedTests {
         table.insertRow(at:1); table.removeRow(at:1); XCTAssertEqual(table.cells.count,3)
     }
 }
+
+extension AdvancedTests {
+    func testGroupedAnimationsSurviveDuplicationAndDeletionValidation() throws {
+        var deck=Presentation(); let child=deck.slides[0].objects[0]
+        var group=SlideObject(kind:.group,name:"Group",frame:child.frame); group.children=[child]
+        deck.slides[0].objects=[group]; deck.slides[0].animations=[ObjectAnimation(objectID:child.id,effect:.fadeIn)]
+        try PresentationFile.validate(deck)
+        let copy=deck.slides[0].duplicated(); XCTAssertEqual(copy.animations?.first?.objectID,copy.objects[0].children[0].id)
+        let hidden=AnimationEngine.frame(slide:deck.slides[0],click:0,elapsed:0,width:1280,height:720)
+        XCTAssertEqual(hidden.objects[0].children[0].opacity,0)
+        let shown=AnimationEngine.frame(slide:deck.slides[0],click:1,elapsed:1,width:1280,height:720)
+        XCTAssertEqual(shown.objects[0].children[0].opacity,1)
+    }
+    func testRejectsInvalidParagraphAndCellStyles() throws {
+        var deck=Presentation(); var paragraph=ParagraphSettings(); paragraph.level = -1; deck.slides[0].objects[0].textStyle.paragraph=paragraph
+        XCTAssertThrowsError(try PresentationFile.validate(deck))
+        deck.slides[0].objects[0].textStyle.paragraph=nil
+        var table=SlideObject(kind:.table,name:"Table",frame:Rect(0,0,400,200)); table.table=TableContent()
+        var style=CellStyle(); style.padding = -.infinity; table.table?.styles=["0:0":style]; deck.slides[0].objects.append(table)
+        XCTAssertThrowsError(try PresentationFile.validate(deck))
+    }
+    func testRecoveryMigratesVersionOne() throws {
+        let url=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at:url) }; try FileManager.default.createDirectory(at:url,withIntermediateDirectories:true)
+        var deck=Presentation(); deck.formatVersion=1
+        let record=RecoveryRecord(sessionID:UUID(),originalPath:nil,presentation:deck)
+        try JSONEncoder().encode(record).write(to:url.appendingPathComponent(record.sessionID.uuidString+".recovery"))
+        let recovered=try RecoveryStore(directory:url).records(); XCTAssertEqual(recovered.count,1); XCTAssertEqual(recovered.first?.presentation.formatVersion,2)
+    }
+}

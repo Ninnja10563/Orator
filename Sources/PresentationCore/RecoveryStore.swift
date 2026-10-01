@@ -31,7 +31,11 @@ public struct RecoveryStore: Sendable {
         return ids.compactMap { id in
             for ext in ["recovery","previous"] {
                 let url=directory.appendingPathComponent(id+"."+ext)
-                if let data=try? Data(contentsOf:url), let record=try? JSONDecoder().decode(RecoveryRecord.self,from:data), (try? PresentationFile.validate(record.presentation)) != nil { return record }
+                if let data=try? Data(contentsOf:url), var record=try? JSONDecoder().decode(RecoveryRecord.self,from:data) {
+                    guard (1...2).contains(record.presentation.formatVersion) else { continue }
+                    record.presentation.formatVersion=2
+                    if (try? PresentationFile.validate(record.presentation)) != nil { return record }
+                }
             }
             return nil
         }.sorted { $0.savedAt < $1.savedAt }

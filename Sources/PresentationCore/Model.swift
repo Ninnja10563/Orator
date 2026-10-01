@@ -99,6 +99,7 @@ public struct SlideObject: Codable, Equatable, Identifiable, Sendable {
     /// Children use slide coordinates; transforms are applied recursively as one edit.
     public var children: [SlideObject] = []
     public init(kind: ObjectKind, name: String, frame: Rect) { self.kind=kind; self.name=name; self.frame=frame }
+    public var descendantIDs: [UUID] { [id]+children.flatMap(\.descendantIDs) }
     public func duplicated(offset: Point = Point(24,24)) -> SlideObject {
         var copy = self; copy.motionID=motionID ?? id; copy.id = UUID(); copy.frame.x += offset.x; copy.frame.y += offset.y
         copy.children = children.map { $0.duplicated(offset: offset) }; return copy
@@ -146,7 +147,7 @@ public struct Slide: Codable, Equatable, Identifiable, Sendable {
     public init() {}
     public func duplicated() -> Slide {
         var copy = self; copy.id = UUID(); copy.objects = objects.map { $0.duplicated(offset: Point()) }
-        let mapping=Dictionary(uniqueKeysWithValues:zip(objects,copy.objects).map { ($0.id,$1.id) })
+        let mapping=Dictionary(uniqueKeysWithValues:zip(objects.flatMap(\.descendantIDs),copy.objects.flatMap(\.descendantIDs)).map { ($0,$1) })
         copy.animations=animations?.map { animation in var result=animation; result.id=UUID(); result.objectID=mapping[animation.objectID] ?? animation.objectID; return result }
         copy.comments = []; return copy
     }

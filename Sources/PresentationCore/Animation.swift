@@ -42,6 +42,10 @@ public enum AnimationEngine {
     }
     public static func frame(slide: Slide, click: Int, elapsed: Double, width: Double, height: Double, reducedMotion: Bool = false) -> Slide {
         var result=slide
+        for i in result.objects.indices where !result.objects[i].children.isEmpty {
+            var nested=Slide(); nested.objects=result.objects[i].children; nested.animations=slide.animations
+            result.objects[i].children=frame(slide:nested,click:click,elapsed:elapsed,width:width,height:height,reducedMotion:reducedMotion).objects
+        }
         for item in schedule(slide.animations ?? []) {
             guard let i=result.objects.firstIndex(where: { $0.id == item.animation.objectID }) else { continue }
             let a=item.animation

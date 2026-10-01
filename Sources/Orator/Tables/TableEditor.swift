@@ -39,9 +39,9 @@ final class TableEditor: NSWindowController, NSTableViewDataSource, NSTableViewD
         }; grid.reloadData()
     }
     func numberOfRows(in tableView: NSTableView) -> Int { content?.cells.count ?? 0 }
-    func tableView(_ tableView: NSTableView, objectValueFor column: NSTableColumn?, row: Int) -> Any? { guard let c=Int(column?.identifier.rawValue ?? "") else { return nil }; return content?.cells[row][c] }
+    func tableView(_ tableView: NSTableView, objectValueFor column: NSTableColumn?, row: Int) -> Any? { guard let c=Int(column?.identifier.rawValue ?? "") else { return nil }; guard let table=content, table.cells.indices.contains(row), table.cells[row].indices.contains(c) else { return nil }; return table.cells[row][c] }
     func tableView(_ tableView: NSTableView, setObjectValue value: Any?, for column: NSTableColumn?, row: Int) {
-        guard var table=content, let c=Int(column?.identifier.rawValue ?? "") else { return }; table.cells[row][c]=value as? String ?? ""; save(table,name:"Edit Table Cell",reload:false)
+        guard var table=content, let c=Int(column?.identifier.rawValue ?? ""), table.cells.indices.contains(row), table.cells[row].indices.contains(c) else { return }; table.cells[row][c]=value as? String ?? ""; save(table,name:"Edit Table Cell",reload:false)
     }
     func tableViewColumnDidResize(_ notification: Notification) {
         guard !rebuilding else { return }; resizeTimer?.invalidate()

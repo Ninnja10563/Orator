@@ -242,7 +242,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
             if let (r,c)=editingCell { changed.objects[i].table?.cells[r][c]=view.string }
             else { NativeText.store(view.attributedString(),in:&changed.objects[i]) }
             if changed.objects[i].name == "Title" { changed.title=String(view.string.prefix(120)) }
-            if changed.objects[i].textStyle.fit == .expand {
+            if editingCell == nil && changed.objects[i].textStyle.fit == .expand {
                 let object=changed.objects[i]
                 let size=(view.string as NSString).boundingRect(with:NSSize(width:object.frame.width,height:100000),options:[.usesLineFragmentOrigin,.usesFontLeading],attributes:object.textStyle.attributes(theme:deck.theme))
                 changed.objects[i].frame.height=max(24,ceil(size.height)+4)

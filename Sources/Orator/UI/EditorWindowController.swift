@@ -245,7 +245,7 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     }
     @objc func insertTable(_ sender: Any?) { var o=SlideObject(kind:.table,name:"Table",frame:Rect(140,180,1000,360)); o.table=TableContent(); insert(o) }
     @objc func insertChart(_ sender: Any?) { var o=SlideObject(kind:.chart,name:"Chart",frame:Rect(160,120,960,500)); o.chart=ChartContent(); insert(o) }
-    @objc func deleteObjects(_ sender: Any?) { canvas.finishText(); var slide=currentSlide; let removed=Set(slide.objects.filter { canvas.selected.contains($0.id) && !$0.locked }.map(\.id)); slide.objects.removeAll { removed.contains($0.id) }; slide.animations?.removeAll { removed.contains($0.objectID) }; commit(slide,name:"Delete Objects"); canvas.selected=[] }
+    @objc func deleteObjects(_ sender: Any?) { canvas.finishText(); var slide=currentSlide; let removed=Set(slide.objects.filter { canvas.selected.contains($0.id) && !$0.locked }.flatMap(\.descendantIDs)); slide.objects.removeAll { removed.contains($0.id) }; slide.animations?.removeAll { removed.contains($0.objectID) }; commit(slide,name:"Delete Objects"); canvas.selected=[] }
     @objc func duplicateObjects(_ sender: Any?) { canvas.finishText(); var slide=currentSlide; let copies=slide.objects.filter { canvas.selected.contains($0.id) }.map { $0.duplicated() }; slide.objects += copies; commit(slide,name:"Duplicate Objects"); canvas.selected=Set(copies.map(\.id)) }
     @objc func copyObjects(_ sender: Any?) {
         canvas.finishText(); let objects=currentSlide.objects.filter { canvas.selected.contains($0.id) }; guard !objects.isEmpty else { return }
@@ -315,7 +315,7 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     @objc func toggleGuides(_ sender: Any?) { canvas.showGuides.toggle(); canvas.needsDisplay=true }
     @objc func addGuide(_ sender: NSMenuItem) { var slide=currentSlide; slide.guides.append(Guide(vertical:sender.tag == 0,position:sender.tag == 0 ? presentation.deck.width/2 : presentation.deck.height/2)); commit(slide,name:"Add Guide") }
     @objc func clearGuides(_ sender: Any?) { var slide=currentSlide; slide.guides=[]; commit(slide,name:"Clear Guides") }
-    @objc func startPresentation(_ sender: Any?) { canvas.finishText(); presenter=PresenterController(deck:presentation.deck,startID:selectedSlideID); presenter?.start() }
+    @objc func startPresentation(_ sender: Any?) { canvas.finishText(); presenter?.end(); presenter=PresenterController(deck:presentation.deck,startID:selectedSlideID); presenter?.start() }
     @objc func editData(_ sender: Any?) {
         guard let object=currentSlide.objects.first(where: { canvas.selected.contains($0.id) }), object.kind == .table || object.kind == .chart else { return }
         if object.kind == .table { let panel=TableEditor(editor:self,object:object); toolWindows.append(panel); panel.showWindow(nil); return }
