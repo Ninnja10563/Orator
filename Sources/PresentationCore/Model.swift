@@ -137,6 +137,10 @@ public struct SlideObject: Codable, Equatable, Identifiable, Sendable {
         for i in children.indices {
             let f = children[i].frame
             children[i].transform(to: Rect(newFrame.x+(f.x-old.x)*sx, newFrame.y+(f.y-old.y)*sy, f.width*sx, f.height*sy))
+            if children[i].kind != .group {
+                let scale=sqrt(abs(sx*sy)); children[i].textStyle.size=max(1,min(1000,children[i].textStyle.size*scale))
+                if var runs=children[i].textRuns { for j in runs.indices { runs[j].style.size=max(1,min(1000,runs[j].style.size*scale)) }; children[i].textRuns=runs }
+            }
         }
         if var c=connector {
             c.start.point=Point(newFrame.x+(c.start.point.x-old.x)*sx,newFrame.y+(c.start.point.y-old.y)*sy)

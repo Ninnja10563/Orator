@@ -176,3 +176,16 @@ extension AdvancedTests {
         XCTAssertEqual(resized.0.width,100); XCTAssertEqual(resized.0.height,80)
     }
 }
+
+extension AdvancedTests {
+    func testPowerPointPreservesNestedRotatedEditableGroups() throws {
+        var child=SlideObject(kind:.text,name:"Editable text",frame:Rect(100,100,300,80)); child.text="Group contents"; child.textStyle.size=32
+        var inner=SlideObject(kind:.group,name:"Inner",frame:child.frame); inner.children=[child]; inner.rotation=15
+        var outer=SlideObject(kind:.group,name:"Outer",frame:child.frame); outer.children=[inner]; outer.rotation=20
+        outer.transform(to:Rect(100,100,600,160)); XCTAssertEqual(outer.children[0].children[0].textStyle.size,64)
+        var deck=Presentation(); deck.slides[0].objects=[outer]
+        let url=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".pptx"); defer { try? FileManager.default.removeItem(at:url) }
+        _=try PowerPoint.export(deck,to:url); let imported=try PowerPoint.importDeck(from:url).deck.slides[0].objects[0]
+        XCTAssertEqual(imported.kind,.group); XCTAssertEqual(imported.rotation,20); XCTAssertEqual(imported.children[0].rotation,15); XCTAssertEqual(imported.children[0].children[0].text,"Group contents"); XCTAssertEqual(imported.children[0].children[0].textStyle.size,64)
+    }
+}

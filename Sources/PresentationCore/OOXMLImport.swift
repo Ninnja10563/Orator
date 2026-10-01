@@ -70,13 +70,24 @@ extension PowerPoint {
                 if source.attr("showMasterSp") != "0" { nodes += (owner?.first("spTree")?.children?.compactMap { $0 as? XMLElement } ?? []).filter { $0.first("ph") == nil }.map { ($0,relationships,true) } }
             }
             nodes += (source.first("spTree")?.children?.compactMap { $0 as? XMLElement } ?? []).map { ($0,links,false) }
-            for (node,objectLinks,inherited) in nodes {
+            func parseNode(_ node: XMLElement,objectLinks: [String:String],inherited: Bool,depth: Int = 0) throws -> SlideObject? {
+                guard depth < 32 else { throw FormatError.invalid("Office groups are nested too deeply") }
+                if node.localName == "grpSp" {
+                    let transform=node.direct("grpSpPr")?.direct("xfrm"), off=transform?.direct("off"), ext=transform?.direct("ext"), childOff=transform?.direct("chOff"), childExt=transform?.direct("chExt")
+                    let frame=Rect((off?.number("x") ?? 0)/9525,(off?.number("y") ?? 0)/9525,max(1,(ext?.number("cx") ?? 9525)/9525),max(1,(ext?.number("cy") ?? 9525)/9525))
+                    var group=SlideObject(kind:.group,name:node.direct("nvGrpSpPr")?.first("cNvPr")?.attr("name") ?? "Group",frame:frame)
+                    group.rotation=(transform?.number("rot") ?? 0)/60000
+                    if !inherited { shapeIDs[node.direct("nvGrpSpPr")?.first("cNvPr")?.attr("id") ?? ""]=group.id }
+                    for child in node.children?.compactMap({ $0 as? XMLElement }) ?? [] { if let object=try parseNode(child,objectLinks:objectLinks,inherited:inherited,depth:depth+1) { group.children.append(object) } }
+                    group.frame=Rect((childOff?.number("x") ?? 0)/9525,(childOff?.number("y") ?? 0)/9525,max(0.001,(childExt?.number("cx") ?? 9525)/9525),max(0.001,(childExt?.number("cy") ?? 9525)/9525))
+                    group.transform(to:frame); return group
+                }
                 func placeholder(in owner: XMLElement?) -> XMLElement? {
                     guard let ph=node.first("ph") else { return nil }
                     return owner?.first("spTree")?.descendants("sp").first { candidate in guard let other=candidate.first("ph") else { return false }; if !ph.attr("idx").isEmpty { return ph.attr("idx") == other.attr("idx") }; return ph.attr("type") == other.attr("type") }
                 }
                 let layoutShape=inherited ? nil : placeholder(in:layout), masterShape=inherited ? nil : placeholder(in:master)
-                guard ["sp","pic","graphicFrame","cxnSp"].contains(node.localName ?? "") else { if node.localName == "grpSp" { warnings.insert("Grouped objects were omitted during import.") }; continue }
+                guard ["sp","pic","graphicFrame","cxnSp"].contains(node.localName ?? "") else { return nil }
                 let transform=node.first("xfrm") ?? layoutShape?.first("xfrm") ?? masterShape?.first("xfrm"), off=transform?.first("off"), ext=transform?.first("ext")
                 let frame=Rect((off?.number("x") ?? 0)/9525,(off?.number("y") ?? 0)/9525,max(1,(ext?.number("cx",default:2857500) ?? 2857500)/9525),max(1,(ext?.number("cy",default:952500) ?? 952500)/9525))
                 let geometry=node.first("prstGeom")?.attr("prst") ?? "rect"
@@ -107,7 +118,7 @@ extension PowerPoint {
                     if slide.title.isEmpty || slide.title == "Slide" { slide.title=String(object.text.prefix(100)) }
                 }
                 if node.localName == "pic" {
-                    guard let blip=node.first("blip"), let target=objectLinks[blip.attr("r:embed")] else { warnings.insert("An externally linked image was omitted."); continue }
+                    guard let blip=node.first("blip"), let target=objectLinks[blip.attr("r:embed")] else { warnings.insert("An externally linked image was omitted."); return nil }
                     let asset=try loadAsset(target); deck.assets[asset.id]=asset; object.kind = .image; object.image=ImageContent(assetID:asset.id)
                     if let crop=node.first("srcRect") { let l=crop.number("l")/100000,t=crop.number("t")/100000; object.image?.crop=Rect(l,t,1-l-crop.number("r")/100000,1-t-crop.number("b")/100000) }
                     object.opacity=(node.first("blip")?.first("alphaModFix")?.number("amt",default:100000) ?? 100000)/100000; object.image?.fill=true; object.image?.flippedHorizontally=transform?.attr("flipH") == "1"; object.image?.flippedVertically=transform?.attr("flipV") == "1"; object.image?.mask=geometry == "ellipse" ? .ellipse : geometry == "roundRect" ? .roundedRectangle : .rectangle
@@ -120,13 +131,17 @@ extension PowerPoint {
                 if node.localName == "graphicFrame" {
                     if let table=node.first("tbl") { object.kind = .table; object.table=try readTable(table,style:object.textStyle,links:textLinks) }
                     else if let chart=node.first("chart"), let target=objectLinks[chart.attr("r:id")] { object.kind = .chart; object.chart=try readChart(document(target)) }
-                    else { warnings.insert("An unsupported graphic was omitted."); continue }
+                    else { warnings.insert("An unsupported graphic was omitted."); return nil }
                 }
-                slide.objects.append(object)
+                return object
             }
-            for i in slide.objects.indices {
-                if let (start,end,s,e)=attachments[slide.objects[i].id] { let anchors: [ConnectionAnchor]=[.top,.left,.bottom,.right]; slide.objects[i].connector?.start.objectID=shapeIDs[start]; slide.objects[i].connector?.end.objectID=shapeIDs[end]; slide.objects[i].connector?.start.anchor=anchors[max(0,min(3,s))]; slide.objects[i].connector?.end.anchor=anchors[max(0,min(3,e))] }
-            }
+            for (node,objectLinks,inherited) in nodes { if let object=try parseNode(node,objectLinks:objectLinks,inherited:inherited) { slide.objects.append(object) } }
+            func connect(_ objects: inout [SlideObject]) {
+                for i in objects.indices {
+                    if let (start,end,s,e)=attachments[objects[i].id] { let anchors: [ConnectionAnchor]=[.top,.left,.bottom,.right]; objects[i].connector?.start.objectID=shapeIDs[start]; objects[i].connector?.end.objectID=shapeIDs[end]; objects[i].connector?.start.anchor=anchors[max(0,min(3,s))]; objects[i].connector?.end.anchor=anchors[max(0,min(3,e))] }
+                    connect(&objects[i].children)
+                }
+            }; connect(&slide.objects)
             if let notesPath=links.values.first(where: { $0.contains("notesSlides/") }) {
                 let notes=try document(notesPath)
                 slide.notes=notes.descendants("sp").filter { $0.first("ph")?.attr("type") == "body" }.flatMap { $0.descendants("p") }.map { $0.descendants("t").map { $0.stringValue ?? "" }.joined() }.joined(separator:"\n")

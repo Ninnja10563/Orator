@@ -40,15 +40,17 @@ public enum PowerPoint {
             let slide=deck.resolved(sourceSlide)
             let n=index+1; var rels=relationship("rIdLayout","slideLayout","../slideLayouts/slideLayout1.xml"), body="", objectNumber=1, hyperlinkNumber=0
             var numericIDs: [UUID:Int]=[:], nextObjectID=1
-            func indexObjects(_ objects: [SlideObject]) { for object in objects where !object.hidden { if object.kind == .group { indexObjects(object.children) } else { nextObjectID += 1; numericIDs[object.id]=nextObjectID } } }; indexObjects(slide.objects)
+            func indexObjects(_ objects: [SlideObject]) { for object in objects where !object.hidden { nextObjectID += 1; numericIDs[object.id]=nextObjectID; if object.kind == .group { indexObjects(object.children) } } }; indexObjects(slide.objects)
             func objectXML(_ o: SlideObject) throws -> String {
                 guard !o.hidden else { return "" }
-                if o.kind == .group {
-                    warnings.insert("Groups are flattened; group rotation is not retained.")
-                    return try o.children.map(objectXML).joined()
-                }
                 objectNumber += 1; let id=objectNumber
                 let nv="<p:cNvPr id=\"\(id)\" name=\"\(xml(o.name))\"/>"
+                if o.kind == .group {
+                    let f=o.frame
+                    let transform="<a:xfrm rot=\"\(Int(o.rotation*60000))\"><a:off x=\"\(emu(f.x))\" y=\"\(emu(f.y))\"/><a:ext cx=\"\(emu(f.width))\" cy=\"\(emu(f.height))\"/><a:chOff x=\"\(emu(f.x))\" y=\"\(emu(f.y))\"/><a:chExt cx=\"\(emu(f.width))\" cy=\"\(emu(f.height))\"/></a:xfrm>"
+                    let children=try o.children.map { child -> String in var child=child; child.opacity *= o.opacity; return try objectXML(child) }.joined()
+                    return "<p:grpSp><p:nvGrpSpPr>\(nv)<p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr>\(transform)</p:grpSpPr>\(children)</p:grpSp>"
+                }
                 if let connector=o.connector {
                     func connection(_ tag: String,_ endpoint: ConnectorEndpoint) -> String {
                         guard let id=endpoint.objectID.flatMap({ numericIDs[$0] }) else { return "" }; let index: Int
