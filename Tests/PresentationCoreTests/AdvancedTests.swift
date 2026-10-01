@@ -166,3 +166,13 @@ extension AdvancedTests {
         XCTAssertGreaterThan(title.textStyle.size,40); XCTAssertNotEqual(deck.theme.name,"Studio")
     }
 }
+
+extension AdvancedTests {
+    func testEqualSpacingAndSizeSnapping() {
+        let peers=[Rect(0,0,100,80),Rect(150,0,100,80)]
+        let moved=Geometry.snap(Rect(302,0,100,80),others:peers,guides:[],width:1280,height:720,tolerance:5)
+        XCTAssertEqual(moved.0.x,300); XCTAssertTrue(moved.1.contains { $0.label == "Equal spacing" })
+        let resized=Geometry.snapSize(Rect(300,0,103,78),others:peers,tolerance:5)
+        XCTAssertEqual(resized.0.width,100); XCTAssertEqual(resized.0.height,80)
+    }
+}

@@ -161,6 +161,7 @@ public struct Comment: Codable, Equatable, Identifiable, Sendable {
 }
 public struct Guide: Codable, Equatable, Sendable {
     public var vertical: Bool; public var position: Double
+    public var label: String? = nil
     public init(vertical: Bool, position: Double) { self.vertical=vertical; self.position=position }
 }
 public struct Slide: Codable, Equatable, Identifiable, Sendable {

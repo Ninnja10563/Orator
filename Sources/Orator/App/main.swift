@@ -102,6 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item(view,"Show / Hide Rulers",#selector(EditorWindowController.toggleRulers(_:)))
         for percent in [25,50,75,100,125,150,200,400] { item(view,"\(percent)%",#selector(EditorWindowController.setZoom(_:))); view.items.last?.tag=percent }
         item(view,"Toggle Guides",#selector(EditorWindowController.toggleGuides(_:))); item(view,"Add Vertical Center Guide",#selector(EditorWindowController.addGuide(_:))); item(view,"Add Horizontal Center Guide",#selector(EditorWindowController.addGuide(_:))); view.items.last?.tag=1; item(view,"Clear Guides",#selector(EditorWindowController.clearGuides(_:)))
+        item(view,"Edit Guides…",#selector(EditorWindowController.editGuides(_:)))
         item(view,"Enter Full Screen",#selector(NSWindow.toggleFullScreen(_:)),"f",[.command,.control])
         let insert=menu("Insert")
         for (title,selector) in [("Text",#selector(EditorWindowController.addText(_:))),("Shape",#selector(EditorWindowController.insertShape(_:))),("Image…",#selector(EditorWindowController.insertImage(_:))),("Table",#selector(EditorWindowController.insertTable(_:))),("Chart",#selector(EditorWindowController.insertChart(_:)))] { item(insert,title,selector) }
@@ -125,6 +126,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item(slide,"Configure Connector…",#selector(EditorWindowController.configureConnector(_:)))
         item(slide,"Object Appearance…",#selector(EditorWindowController.objectAppearance(_:)))
         let arrange=menu("Arrange"); item(arrange,"Group",#selector(EditorWindowController.groupObjects(_:)),"g",[.command,.option]); item(arrange,"Ungroup",#selector(EditorWindowController.ungroupObjects(_:)),"g",[.command,.option,.shift]); item(arrange,"Bring to Front",#selector(EditorWindowController.bringToFront(_:))); item(arrange,"Send to Back",#selector(EditorWindowController.sendToBack(_:))); item(arrange,"Lock / Unlock Selection",#selector(EditorWindowController.toggleLock(_:))); item(arrange,"Unlock All",#selector(EditorWindowController.unlockAll(_:))); arrange.addItem(.separator())
+        item(arrange,"Bring Forward",#selector(EditorWindowController.bringForward(_:)))
+        item(arrange,"Send Backward",#selector(EditorWindowController.sendBackward(_:)))
         item(arrange,"Edit Group",#selector(EditorWindowController.editSelectedGroup(_:)))
         item(arrange,"Finish Editing Group",#selector(EditorWindowController.finishGroupEditing(_:)))
         for (i,title) in ["Align Left","Align Center","Align Right","Align Top","Align Middle","Align Bottom","Distribute Horizontally","Distribute Vertically"].enumerated() { item(arrange,title,#selector(EditorWindowController.alignObjects(_:))); arrange.items.last?.tag=i }

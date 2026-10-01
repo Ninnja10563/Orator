@@ -77,6 +77,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
                 NSColor.systemPink.withAlphaComponent(0.8).setStroke(); let path=NSBezierPath(); path.lineWidth=1
                 if guide.vertical { let x=r.minX+guide.position*scale; path.move(to:NSPoint(x:x,y:r.minY)); path.line(to:NSPoint(x:x,y:r.maxY)) }
                 else { let y=r.minY+guide.position*scale; path.move(to:NSPoint(x:r.minX,y:y)); path.line(to:NSPoint(x:r.maxX,y:y)) }; path.stroke()
+                if let label=guide.label { let point=guide.vertical ? NSPoint(x:r.minX+guide.position*scale+5,y:r.minY+8) : NSPoint(x:r.minX+8,y:r.minY+guide.position*scale+5); (label as NSString).draw(at:point,withAttributes:[.font:NSFont.systemFont(ofSize:10),.foregroundColor:NSColor.systemPink,.backgroundColor:NSColor.windowBackgroundColor]) }
             }
         }
         for object in slide.objects where selected.contains(object.id) {
@@ -151,6 +152,11 @@ final class CanvasView: NSView, NSTextViewDelegate {
             if [2,3,4].contains(index) { n.width=max(8,b.width+dx) }
             if [0,1,2].contains(index) { n.y=min(b.maxY-8,b.y+dy); n.height=b.maxY-n.y }
             if [4,5,6].contains(index) { n.height=max(8,b.height+dy) }
+            guides=[]
+            if !event.modifierFlags.contains(.option) && !event.modifierFlags.contains(.shift) {
+                let snapped=Geometry.snapSize(n,others:draft.objects.filter { !selected.contains($0.id) && !$0.hidden }.map(\.frame),tolerance:5/scale); n=snapped.0; guides=snapped.1
+                if [0,6,7].contains(index) { n.x=b.maxX-n.width }; if [0,1,2].contains(index) { n.y=b.maxY-n.height }
+            }
             if event.modifierFlags.contains(.shift) { n.height=n.width*b.height/b.width }
             for i in draft.objects.indices where selected.contains(draft.objects[i].id) && !draft.objects[i].locked {
                 let f=draft.objects[i].frame

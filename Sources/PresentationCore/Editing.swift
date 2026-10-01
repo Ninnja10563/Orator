@@ -88,6 +88,33 @@ public enum Geometry {
         var r=proposed; var lines: [Guide]=[]
         if let (d,t)=closest([r.x,r.midX,r.maxX],xs) { r.x += d; lines.append(Guide(vertical:true,position:t)) }
         if let (d,t)=closest([r.y,r.midY,r.maxY],ys) { r.y += d; lines.append(Guide(vertical:false,position:t)) }
+        // Repeated gaps and centering between peers are evaluated in slide coordinates.
+        for horizontal in [true,false] {
+            let peers=others.filter { horizontal ? ($0.y < proposed.maxY && $0.maxY > proposed.y) : ($0.x < proposed.maxX && $0.maxX > proposed.x) }.sorted { horizontal ? $0.x < $1.x : $0.y < $1.y }
+            guard peers.count > 1 else { continue }
+            let position=horizontal ? proposed.x : proposed.y, size=horizontal ? proposed.width : proposed.height
+            var candidate: Double?
+            for i in 0..<peers.count-1 {
+                let a=peers[i],b=peers[i+1], end=horizontal ? a.maxX : a.maxY, start=horizontal ? b.x : b.y, gap=start-end
+                guard gap >= 0 else { continue }
+                var targets=[(horizontal ? b.maxX : b.maxY)+gap,(horizontal ? a.x : a.y)-gap-size]
+                if gap >= size { targets.append(end+(gap-size)/2) }
+                for target in targets where abs(target-position) <= tolerance { if candidate == nil || abs(target-position) < abs(candidate!-position) { candidate=target } }
+            }
+            if let value=candidate {
+                let existing=abs((horizontal ? r.x : r.y)-position)
+                if existing == 0 || abs(value-position) < existing {
+                    if horizontal { r.x=value } else { r.y=value }
+                    lines.removeAll { $0.vertical == horizontal }; var guide=Guide(vertical:horizontal,position:value+size/2); guide.label="Equal spacing"; lines.append(guide)
+                }
+            }
+        }
         return (r,lines)
+    }
+    public static func snapSize(_ proposed: Rect,others: [Rect],tolerance: Double) -> (Rect,[Guide]) {
+        var result=proposed, guides: [Guide]=[]
+        if let width=others.map(\.width).filter({ abs($0-proposed.width) <= tolerance }).min(by:{ abs($0-proposed.width) < abs($1-proposed.width) }) { result.width=width; var guide=Guide(vertical:true,position:result.maxX); guide.label="Equal width"; guides.append(guide) }
+        if let height=others.map(\.height).filter({ abs($0-proposed.height) <= tolerance }).min(by:{ abs($0-proposed.height) < abs($1-proposed.height) }) { result.height=height; var guide=Guide(vertical:false,position:result.maxY); guide.label="Equal height"; guides.append(guide) }
+        return (result,guides)
     }
 }
