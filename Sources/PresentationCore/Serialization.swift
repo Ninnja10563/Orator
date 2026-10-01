@@ -42,6 +42,10 @@ public enum PresentationFile {
                 if let runs=o.textRuns { try RichText.validate(runs,text:o.text) }
                 if let table=o.table {
                     guard !table.cells.isEmpty, table.cells.count <= 1000, let columns=table.cells.first?.count, (1...100).contains(columns), table.cells.allSatisfy({ $0.count == columns }) else { throw FormatError.invalid("invalid table dimensions") }
+                    for weights in [table.rowHeights,table.columnWidths] { if let weights=weights { guard weights.allSatisfy({ $0.isFinite && $0 > 0 }) else { throw FormatError.invalid("invalid table weights") } } }
+                    guard table.rowHeights.map({ $0.count == table.cells.count }) ?? true, table.columnWidths.map({ $0.count == columns }) ?? true else { throw FormatError.invalid("table weight count mismatch") }
+                    var checked=TableContent(rows:table.cells.count,columns:columns)
+                    for merge in table.merges ?? [] { try checked.merge(merge) }
                 }
                 if let media=o.media {
                     guard deck.assets[media.assetID] != nil, media.trimStart.isFinite, media.trimStart >= 0, media.trimEnd.map({ $0.isFinite && $0 > media.trimStart }) ?? true, media.volume.isFinite, (0...1).contains(media.volume), media.fadeIn.isFinite, media.fadeOut.isFinite, media.fadeIn >= 0, media.fadeOut >= 0 else { throw FormatError.invalid("invalid media settings") }

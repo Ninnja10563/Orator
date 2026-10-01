@@ -318,6 +318,7 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     @objc func startPresentation(_ sender: Any?) { canvas.finishText(); presenter=PresenterController(deck:presentation.deck,startID:selectedSlideID); presenter?.start() }
     @objc func editData(_ sender: Any?) {
         guard let object=currentSlide.objects.first(where: { canvas.selected.contains($0.id) }), object.kind == .table || object.kind == .chart else { return }
+        if object.kind == .table { let panel=TableEditor(editor:self,object:object); toolWindows.append(panel); panel.showWindow(nil); return }
         let alert=NSAlert(); alert.messageText=object.kind == .table ? "Edit table" : "Edit chart data"
         alert.informativeText=object.kind == .table ? "Separate columns with tabs and rows with new lines. Adding or removing lines changes the table size." : "One category and value per line, separated by a tab."
         let scroll=NSScrollView(frame:NSRect(x:0,y:0,width:460,height:240)); scroll.hasVerticalScroller=true; let text=NSTextView(frame:scroll.bounds); text.isRichText=false; text.font = .monospacedSystemFont(ofSize:13,weight:.regular); scroll.documentView=text

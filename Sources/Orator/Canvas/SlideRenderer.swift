@@ -78,13 +78,20 @@ final class SlideRenderer {
             image.draw(in:dest,from:source,operation:.sourceOver,fraction:1,respectFlipped:true,hints:[.interpolation:NSImageInterpolation.high.rawValue])
         case .table:
             guard let table=o.table, !table.cells.isEmpty, let count=table.cells.first?.count, count > 0 else { return }
-            let h=r.height/Double(table.cells.count), w=r.width/Double(count)
             for row in table.cells.indices { for col in table.cells[row].indices {
-                let cell=NSRect(x:r.minX+Double(col)*w,y:r.minY+Double(row)*h,width:w,height:h)
-                (row == 0 ? deck.theme.accent : deck.theme.background).nsColor.setFill(); cell.fill()
-                deck.theme.foreground.nsColor.withAlphaComponent(0.18).setStroke(); let p=NSBezierPath(rect:cell); p.lineWidth=1; p.stroke()
-                var style=o.textStyle; style.size=min(style.size,24); style.bold=row == 0; if row == 0 { let c=deck.theme.accent; style.color = c.red*0.2126+c.green*0.7152+c.blue*0.0722 > 0.6 ? .ink : .white }
-                drawText(table.cells[row][col],style:style,rect:cell.insetBy(dx:12,dy:8),theme:deck.theme)
+                let anchor=table.anchor(row:row,column:col); if anchor.0 != row || anchor.1 != col { continue }
+                let cell=table.cellFrame(row:row,column:col,in:o.frame).nsRect
+                let cellStyle=table.styles?["\(row):\(col)"] ?? CellStyle()
+                (cellStyle.fill ?? (row == 0 ? deck.theme.accent : deck.theme.background)).nsColor.setFill(); cell.fill()
+                (cellStyle.border?.nsColor ?? deck.theme.foreground.nsColor.withAlphaComponent(0.18)).setStroke(); let p=NSBezierPath(rect:cell); p.lineWidth=cellStyle.borderWidth; p.stroke()
+                var style=cellStyle.textStyle ?? o.textStyle
+                if cellStyle.textStyle == nil { style.size=min(style.size,24); style.bold=row == 0; if row == 0 { let c=deck.theme.accent; style.color=c.red*0.2126+c.green*0.7152+c.blue*0.0722 > 0.6 ? .ink : .white } }
+                var textRect=cell.insetBy(dx:cellStyle.padding,dy:cellStyle.padding)
+                if cellStyle.vertical != .top {
+                    let height=(table.cells[row][col] as NSString).boundingRect(with:textRect.size,options:[.usesLineFragmentOrigin,.usesFontLeading],attributes:style.attributes(theme:deck.theme)).height
+                    textRect.origin.y += max(0,textRect.height-height)*(cellStyle.vertical == .middle ? 0.5 : 1)
+                }
+                drawText(table.cells[row][col],style:style,rect:textRect,theme:deck.theme)
             } }
         case .chart: if let chart=o.chart { drawChart(chart,object:o,deck:deck) }
         case .video, .audio:

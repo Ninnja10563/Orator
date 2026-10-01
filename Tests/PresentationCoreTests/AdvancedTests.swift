@@ -56,3 +56,17 @@ extension AdvancedTests {
         XCTAssertEqual(imported.deck.assets[media.assetID]?.data,asset.data)
     }
 }
+
+extension AdvancedTests {
+    func testTableMergesPreserveCoveredDataAndResizeProportionally() throws {
+        var table=TableContent(rows:3,columns:3); table.cells[0]=["A","B","C"]
+        try table.merge(CellMerge(row:0,column:0,rows:1,columns:2))
+        XCTAssertEqual(table.cellFrame(row:0,column:0,in:Rect(0,0,300,90)).width,200)
+        XCTAssertEqual(table.anchor(row:0,column:1).1,0)
+        XCTAssertThrowsError(try table.merge(CellMerge(row:0,column:1,rows:1,columns:2)))
+        table.split(row:0,column:1); XCTAssertEqual(table.cells[0][1],"B")
+        table.insertColumn(at:0); XCTAssertEqual(table.cells[0][2],"B")
+        table.removeColumn(at:0); XCTAssertEqual(table.cells[0],["A","B","C"])
+        table.insertRow(at:1); table.removeRow(at:1); XCTAssertEqual(table.cells.count,3)
+    }
+}

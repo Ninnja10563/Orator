@@ -30,6 +30,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
     private var marquee: Rect?
     private var textEditor: NSTextView?
     private var editingID: UUID?
+    private var editingCell: (Int,Int)?
     enum DragMode { case none, move, resize(Int), rotate, marquee, guide(Bool) }
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
@@ -49,7 +50,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
         NSGraphicsContext.saveGraphicsState()
         let shadow=NSShadow(); shadow.shadowColor=NSColor.black.withAlphaComponent(0.12); shadow.shadowBlurRadius=8; shadow.shadowOffset=NSSize(width:0,height:-2); shadow.set()
         NSColor.white.setFill(); r.fill(); NSGraphicsContext.restoreGraphicsState()
-        SlideRenderer.shared.draw(slide:slide,deck:deck,in:r,excluding:editingID)
+        SlideRenderer.shared.draw(slide:slide,deck:deck,in:r,excluding:editingCell == nil ? editingID : nil)
         if showRulers {
             NSColor.controlBackgroundColor.setFill()
             NSRect(x:0,y:0,width:bounds.width,height:20).fill(); NSRect(x:0,y:0,width:20,height:bounds.height).fill()
@@ -100,7 +101,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
             if event.modifierFlags.contains(.shift) { if selected.contains(object.id) { selected.remove(object.id) } else { selected.insert(object.id) } }
             else if !selected.contains(object.id) { selected=[object.id] }
             originalBounds=Geometry.bounds(slide.objects.filter { selected.contains($0.id) && !$0.locked })
-            if event.clickCount == 2 { if object.kind == .text || object.kind == .shape { beginText(object) } else if object.kind == .table || object.kind == .chart { editor?.editData(nil) }; mode = .none; return }
+            if event.clickCount == 2 { if object.kind == .text || object.kind == .shape { beginText(object) } else if object.kind == .table { beginTableCell(object,at:p) } else if object.kind == .chart { editor?.editData(nil) }; mode = .none; return }
             mode = .move
         } else { if !event.modifierFlags.contains(.shift) { selected=[] }; mode = .marquee; marquee=Rect(p.x,p.y,0,0) }
     }
@@ -177,9 +178,21 @@ final class CanvasView: NSView, NSTextViewDelegate {
         needsDisplay=true
     }
     override func magnify(with event: NSEvent) { finishText(); let current=scale; fit=false; zoom=min(4,max(0.1,current*(1+event.magnification))) }
+    func beginTableCell(_ object: SlideObject, at point: Point) {
+        guard let table=object.table else { return }
+        for row in table.cells.indices { for column in table.cells[row].indices {
+            let anchor=table.anchor(row:row,column:column)
+            let frame=table.cellFrame(row:anchor.0,column:anchor.1,in:object.frame)
+            if frame.contains(point) {
+                var text=object; text.text=table.cells[anchor.0][anchor.1]; text.textRuns=nil
+                text.frame=Rect(frame.x+10,frame.y+10,max(1,frame.width-20),max(1,frame.height-20)); text.textStyle=table.styles?["\(anchor.0):\(anchor.1)"]?.textStyle ?? object.textStyle; text.textStyle.size=min(24,text.textStyle.size)
+                beginText(text); editingCell=anchor; return
+            }
+        } }
+    }
     func beginText(_ object: SlideObject) {
         guard !object.locked else { return }
-        editingID=object.id
+        editingID=object.id; editingCell=nil
         let view=InlineTextView(frame:viewRect(object.frame)); view.isRichText=true; view.drawsBackground=true; view.backgroundColor=(slide.background ?? deck.theme.background).nsColor
         view.textContainerInset=NSSize(width:0,height:0); view.textContainer?.lineFragmentPadding=0
         view.setBoundsSize(NSSize(width:object.frame.width,height:object.frame.height))
@@ -212,7 +225,8 @@ final class CanvasView: NSView, NSTextViewDelegate {
     }
     var pendingTextSlide: Slide? {
         guard let view=textEditor, let id=editingID, var changed=editor?.currentSlide, let i=changed.objects.firstIndex(where: { $0.id == id }) else { return nil }
-        NativeText.store(view.attributedString(),in:&changed.objects[i])
+        if let (r,c)=editingCell { changed.objects[i].table?.cells[r][c]=view.string }
+            else { NativeText.store(view.attributedString(),in:&changed.objects[i]) }
         if changed.objects[i].name == "Title" { changed.title=String(view.string.prefix(120)) }
         return changed
     }
@@ -225,7 +239,8 @@ final class CanvasView: NSView, NSTextViewDelegate {
         guard let view=textEditor, let id=editingID else { return }
         var changed=editor?.currentSlide ?? Slide()
         if let i=changed.objects.firstIndex(where: { $0.id == id }) {
-            NativeText.store(view.attributedString(),in:&changed.objects[i])
+            if let (r,c)=editingCell { changed.objects[i].table?.cells[r][c]=view.string }
+            else { NativeText.store(view.attributedString(),in:&changed.objects[i]) }
             if changed.objects[i].name == "Title" { changed.title=String(view.string.prefix(120)) }
             if changed.objects[i].textStyle.fit == .expand {
                 let object=changed.objects[i]
@@ -233,7 +248,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
                 changed.objects[i].frame.height=max(24,ceil(size.height)+4)
             }
         }
-        textEditor=nil; editingID=nil; view.removeFromSuperview(); editor?.commit(changed,name:"Edit Text"); needsDisplay=true
+        textEditor=nil; editingID=nil; editingCell=nil; view.removeFromSuperview(); editor?.commit(changed,name:"Edit Text"); needsDisplay=true
     }
     override func resignFirstResponder() -> Bool { true }
     override func selectAll(_ sender: Any?) { selected=Set(slide.objects.filter { !$0.locked && !$0.hidden }.map(\.id)) }
