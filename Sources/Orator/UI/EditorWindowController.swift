@@ -218,6 +218,8 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     @objc func pasteSlides(_ sender: Any?) {
         canvas.finishText()
         guard let data=NSPasteboard.general.data(forType:Self.slidePasteboard), let payload=try? JSONDecoder().decode(SlideClipboard.self,from:data) else { return }
+        var incoming=Presentation(); incoming.slides=payload.slides; incoming.assets=payload.assets
+        do { try PresentationFile.validate(incoming) } catch { presentation.presentError(error); return }
         let slides=payload.slides.map { $0.duplicated() }
         let position=(presentation.deck.slides.firstIndex { $0.id == selectedSlideID } ?? 0)+1
         let edits=payload.assets.values.map(Edit.putAsset)+slides.enumerated().map { Edit.insertSlide($0.element,position+$0.offset) }
@@ -278,6 +280,8 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     @objc func pasteObjects(_ sender: Any?) {
         canvas.finishText()
         if let data=NSPasteboard.general.data(forType:Self.objectPasteboard), let payload=try? JSONDecoder().decode(ObjectClipboard.self,from:data) {
+            var incoming=Presentation(); incoming.slides[0].objects=payload.objects; incoming.assets=payload.assets
+            do { try PresentationFile.validate(incoming) } catch { presentation.presentError(error); return }
             var slide=currentSlide; let objects=SlideObject.duplicateBatch(payload.objects); slide.objects += objects
             guard let replacement=replacementEdit(slide) else { return }
             let edit=Edit.batch(payload.assets.values.map(Edit.putAsset)+[replacement])

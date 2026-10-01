@@ -26,4 +26,16 @@ extension EditorWindowController {
             }
         }
     }
+    @objc func editHyperlink(_ sender: Any?) {
+        guard let object=currentSlide.objects.first(where: { canvas.selected.contains($0.id) && [.text,.shape].contains($0.kind) }) else { return }
+        let alert=NSAlert(); alert.messageText="Text Link"; alert.informativeText="Apply a link to the selected text. Leave the address empty to remove it."
+        let field=NSTextField(string:object.textStyle.hyperlink ?? ""); field.frame=NSRect(x:0,y:0,width:380,height:24); field.placeholderString="https://example.com"; field.setAccessibilityLabel("Link address")
+        alert.accessoryView=field; alert.addButton(withTitle:"Apply"); alert.addButton(withTitle:"Cancel")
+        alert.beginSheetModal(for:window!) { [weak self] response in
+            guard response == .alertFirstButtonReturn, let self else { return }
+            let value=field.stringValue.trimmingCharacters(in:.whitespacesAndNewlines)
+            guard value.isEmpty || URL(string:value)?.scheme != nil else { let error=NSAlert(); error.messageText="Enter a complete link"; error.informativeText="Include a scheme such as https:// or mailto:."; error.beginSheetModal(for:self.window!); return }
+            self.formatText("Edit Link") { $0.hyperlink=value.isEmpty ? nil : value }
+        }
+    }
 }

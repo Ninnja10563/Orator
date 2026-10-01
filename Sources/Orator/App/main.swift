@@ -137,6 +137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let format=menu("Format")
         item(format,"Object Appearance…",#selector(EditorWindowController.objectAppearance(_:)))
         item(format,"Paragraph and Spacing…",#selector(EditorWindowController.showParagraphSettings(_:)))
+        item(format,"Text Link…",#selector(EditorWindowController.editHyperlink(_:)),"k")
         item(format,"Configure Connector…",#selector(EditorWindowController.configureConnector(_:)))
         format.addItem(.separator())
         item(format,"Remove Image Background…",#selector(EditorWindowController.removeImageBackground(_:)))
