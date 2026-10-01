@@ -90,7 +90,7 @@ extension PowerPoint {
                 if filter.contains("right") { animation.direction = .right }; if filter.contains("top") { animation.direction = .up }; if filter.contains("bottom") { animation.direction = .down }
                 behavior=effect.first("cTn")
             } else if let rotate=node.first("animRot") { animation.effect = .spin; behavior=rotate.first("cTn"); if rotate.number("by") != 21600000 { unsupported=true } }
-            else if let scale=node.first("animScale") { behavior=scale.first("cTn"); animation.effect=behavior?.attr("autoRev") == "1" ? .pulse : .grow }
+            else if let scale=node.first("animScale") { behavior=scale.first("cTn"); animation.effect=behavior?.attr("autoRev") == "1" ? .pulse : .grow; let expected: Double=animation.effect == .pulse ? 112000 : 125000; if scale.direct("by")?.number("x") != expected || scale.direct("by")?.number("y") != expected { unsupported=true } }
             else if let color=node.first("animClr") { animation.effect = .colorChange; behavior=color.first("cTn"); animation.targetColor=color.direct("to")?.officeColor(palette:[:]) ?? .accent }
             else if let motion=node.first("animMotion"), let object=find(objectID,in:objects) {
                 animation.effect = .motionPath; behavior=motion.first("cTn")
@@ -105,7 +105,7 @@ extension PowerPoint {
             let base=animation.start == .withPrevious ? prior?.start ?? 0 : animation.start == .afterPrevious ? prior?.end ?? 0 : 0
             animation.delay=min(86400,max(0,start-base)); result.append(animation)
         }
-        if result.isEmpty && !timing.descendants("spTgt").isEmpty { unsupported=true }
+        if result.isEmpty && !timing.descendants("cBhvr").isEmpty { unsupported=true }
         return (result,unsupported)
     }
     /// Preserve imported cubic geometry as closely sampled editable path points.

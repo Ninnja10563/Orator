@@ -38,6 +38,14 @@ func checkAdvancedEditing(_ editor: EditorWindowController) throws {
     document.undoManager?.undo()
     guard editor.currentSlide.objects.first(where: { $0.id == tableObject.id }) == tableObject else { fatalError("Table cell undo failed") }
     try capture(table,"table-editor"); table.close()
+    editor.canvas.beginTableCell(tableObject,at:Point(tableObject.frame.x+1,tableObject.frame.y+1))
+    guard let cellEditor=editor.canvas.subviews.compactMap({ $0 as? InlineTextView }).first else { fatalError("Inline table cell editor missing") }
+    cellEditor.setSelectedRange(NSRange(location:0,length:cellEditor.string.utf16.count))
+    _=editor.canvas.formatTextSelection("Italic Cell") { $0.italic=true }
+    let savedCell=try NativePackage().decode(document.fileWrapper(ofType:"app.orator.presentation")).slides[0].objects.first { $0.id == tableObject.id }?.table
+    guard savedCell?.richText?["0:0"]?.first?.style.italic == true else { fatalError("Saving omitted active table cell formatting") }
+    grouped { editor.canvas.finishText() }; document.undoManager?.undo()
+    guard editor.currentSlide.objects.first(where: { $0.id == tableObject.id }) == tableObject else { fatalError("Rich table cell undo failed") }
     grouped { editor.insertChart(nil) }
     let chartObject=editor.currentSlide.objects.last!
     let chart=ChartEditor(editor:editor,object:chartObject)
