@@ -43,3 +43,6 @@ jobs:
             build/workspace-dark.png
             build/smoke.pptx
             build/compatibility.pptx
+            build/table-editor.png
+            build/chart-editor.png
+            build/crop-editor.png

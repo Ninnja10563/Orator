@@ -1,0 +1,61 @@
+import AppKit
+import AVFoundation
+import AVKit
+import PresentationCore
+
+func checkAdvancedEditing(_ editor: EditorWindowController) throws {
+    let document=editor.presentation, original=document.deck
+    func grouped(_ body: () -> Void) { document.undoManager?.beginUndoGrouping(); body(); document.undoManager?.endUndoGrouping() }
+    func capture(_ panel: NSWindowController,_ name: String) throws {
+        panel.showWindow(nil); RunLoop.current.run(until:Date().addingTimeInterval(0.15))
+        guard !CommandLine.arguments.contains("--dark"), let output=ProcessInfo.processInfo.environment["ORATOR_SMOKE_OUTPUT"], let view=panel.window?.contentView else { return }
+        view.layoutSubtreeIfNeeded(); view.displayIfNeeded()
+        if let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds) { view.cacheDisplay(in:view.bounds,to:bitmap); try bitmap.representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:output).deletingLastPathComponent().appendingPathComponent(name+".png")) }
+    }
+    let tableObject=editor.currentSlide.objects.first { $0.kind == .table }!
+    let table=TableEditor(editor:editor,object:tableObject)
+    grouped { table.tableView(table.grid,setObjectValue:"Edited in AppKit",for:table.grid.tableColumns[1],row:1) }
+    guard editor.currentSlide.objects.first(where: { $0.id == tableObject.id })?.table?.cells[1][1] == "Edited in AppKit" else { fatalError("Native table cell edit failed") }
+    document.undoManager?.undo()
+    guard editor.currentSlide.objects.first(where: { $0.id == tableObject.id }) == tableObject else { fatalError("Table cell undo failed") }
+    try capture(table,"table-editor"); table.close()
+    grouped { editor.insertChart(nil) }
+    let chartObject=editor.currentSlide.objects.last!
+    let chart=ChartEditor(editor:editor,object:chartObject)
+    grouped { chart.addSeries(); chart.tableView(chart.grid,setObjectValue:"42",for:chart.grid.tableColumns[2],row:0) }
+    guard chart.content?.dataSeries.count == 2, chart.content?.dataSeries[1].values[0] == 42 else { fatalError("Native chart series editing failed") }
+    try capture(chart,"chart-editor"); chart.close()
+    let image=NSImage(size:NSSize(width:640,height:360)); image.lockFocus(); NSColor.systemBlue.setFill(); NSRect(x:0,y:0,width:640,height:360).fill(); NSColor.systemOrange.setFill(); NSRect(x:160,y:90,width:320,height:180).fill(); image.unlockFocus()
+    let crop=CropEditor(image:image,content:ImageContent(assetID:UUID())) { _,_ in }
+    crop.preview.setAspect(1)
+    guard abs(crop.preview.crop.width*640-crop.preview.crop.height*360) < 0.01 else { fatalError("Crop aspect ratio failed") }
+    try capture(crop,"crop-editor"); crop.close()
+    editor.canvas.selected=[editor.currentSlide.objects[0].id]
+    grouped { editor.saveAsMasterLayout(nil) }
+    guard editor.editingLayoutID != nil else { fatalError("Master layout editor failed") }
+    var layout=editor.currentSlide; layout.objects[0].frame.x=170
+    grouped { editor.commit(layout,name:"Move Layout Placeholder") }
+    guard editor.currentSlide.objects[0].frame.x == 170 else { fatalError("Master layout edit was not stored") }
+    _=try PresentationFile.decode(document.data(ofType:"app.orator.presentation"))
+    editor.editMaster(nil)
+    try checkMediaPlayback()
+    document.deck=original; document.undoManager?.removeAllActions(); editor.editingMasterID=nil; editor.editingLayoutID=nil; editor.selectedSlideID=original.slides[0].id; editor.canvas.selected=[]; editor.refresh(); editor.window?.makeKeyAndOrderFront(nil)
+    print("Advanced AppKit checks: table cells/undo, chart series, crop geometry, master layouts, and AVFoundation playback passed")
+}
+private func checkMediaPlayback() throws {
+    var wav=Data()
+    func word(_ value: UInt32,_ bytes: Int) { for i in 0..<bytes { wav.append(UInt8((value >> (8*i)) & 255)) } }
+    let count=16000
+    wav.append(Data("RIFF".utf8)); word(UInt32(36+count),4); wav.append(Data("WAVEfmt ".utf8)); word(16,4); word(1,2); word(1,2); word(8000,4); word(16000,4); word(2,2); word(16,2); wav.append(Data("data".utf8)); word(UInt32(count),4); wav.append(Data(repeating:0,count:count))
+    var deck=Presentation(); let asset=Asset(name:"Playback.wav",data:wav); deck.assets[asset.id]=asset
+    var object=SlideObject(kind:.audio,name:"Playback",frame:Rect(0,0,640,72)); object.media=MediaContent(assetID:asset.id); object.media?.volume=0; object.media?.trimEnd=0.8
+    var slide=Slide(); slide.objects=[object]
+    let parent=NSView(frame:NSRect(x:0,y:0,width:640,height:360)), playback=MediaPlayback()
+    try playback.install(slide:slide,deck:deck,in:parent,rect:parent.bounds,forceAutoplay:true)
+    guard let player=parent.subviews.compactMap({ $0 as? AVPlayerView }).first?.player else { fatalError("Media player view missing") }
+    let deadline=Date().addingTimeInterval(5)
+    while Date() < deadline && player.currentTime().seconds < 0.05 && player.status != .failed { RunLoop.current.run(until:Date().addingTimeInterval(0.05)) }
+    guard player.status == .readyToPlay, player.currentTime().seconds >= 0.05 else { fatalError("Embedded audio did not begin playback: \(String(describing:player.error))") }
+    playback.pause(); guard player.rate == 0 else { fatalError("Media pause failed") }; playback.resume(); playback.stop()
+    guard parent.subviews.isEmpty, player.rate == 0 else { fatalError("Media cleanup failed") }
+}

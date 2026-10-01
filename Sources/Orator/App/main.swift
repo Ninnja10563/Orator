@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 document.deck.slides[0].notes="Smoke test notes"
                 editor.refresh()
                 try checkEditingInteractions(editor)
+                try checkAdvancedEditing(editor)
                 RunLoop.current.run(until:Date().addingTimeInterval(0.3))
                 let data=try document.data(ofType:"app.orator.presentation"); _ = try PresentationFile.decode(data)
                 let nativeURL=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".orator")
