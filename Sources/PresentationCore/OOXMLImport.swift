@@ -43,7 +43,7 @@ extension PowerPoint {
         let root=try document("ppt/presentation.xml"), rels=try relations("ppt/presentation.xml")
         var authors: [String:String]=[:]
         if let path=rels.values.first(where: { $0.contains("commentAuthors") }) { for author in try document(path).descendants("cmAuthor") { authors[author.attr("id")]=author.attr("name") } }
-        var deck=Presentation(); deck.slides=[]; deck.title=archive.deletingPathExtension().lastPathComponent
+        var deck=Presentation(); deck.slides=[]; deck.masters=[]; deck.title=archive.deletingPathExtension().lastPathComponent
         var importedAssets: [String:Asset]=[:]
         var masterIndices: [String:Int]=[:], layoutIdentities: [String:UUID]=[:]
         func loadAsset(_ path: String) throws -> Asset { if let cached=importedAssets[path] { return cached }; let value=Asset(name:URL(fileURLWithPath:path).lastPathComponent,data:try read(path)); importedAssets[path]=value; return value }
