@@ -73,6 +73,8 @@ final class SlideRenderer {
             if !o.text.isEmpty { drawRichText(o,rect:r.insetBy(dx:12,dy:10),theme:deck.theme) }
         case .image:
             guard let content=o.image, let image=image(content.assetID,in:deck) else { return }
+            context.beginTransparencyLayer(auxiliaryInfo:nil)
+            NSGraphicsContext.saveGraphicsState()
             switch content.mask ?? .rectangle { case .rectangle:r.clip(); case .roundedRectangle:NSBezierPath(roundedRect:r,xRadius:o.style.cornerRadius,yRadius:o.style.cornerRadius).addClip(); case .ellipse:NSBezierPath(ovalIn:r).addClip() }
             let size=image.size, c=content.crop
             let source=NSRect(x:c.x*size.width,y:(1-c.maxY)*size.height,width:c.width*size.width,height:c.height*size.height)
@@ -84,6 +86,11 @@ final class SlideRenderer {
             }
             if content.flippedVertically == true { let flip=NSAffineTransform(); flip.translateX(by:0,yBy:r.midY); flip.scaleX(by:1,yBy:-1); flip.translateX(by:0,yBy:-r.midY); flip.concat() }
             image.draw(in:dest,from:source,operation:.sourceOver,fraction:1,respectFlipped:true,hints:[.interpolation:NSImageInterpolation.high.rawValue])
+            NSGraphicsContext.restoreGraphicsState(); context.endTransparencyLayer(); context.setShadow(offset:.zero,blur:0,color:nil)
+            if o.style.strokeWidth > 0 {
+                let outline=shape(content.mask == .ellipse ? .ellipse : content.mask == .roundedRectangle ? .roundedRectangle : .rectangle,in:r,radius:o.style.cornerRadius)
+                outline.lineWidth=o.style.strokeWidth; o.style.stroke.nsColor.setStroke(); outline.stroke()
+            }
         case .table:
             guard let table=o.table, !table.cells.isEmpty, let count=table.cells.first?.count, count > 0 else { return }
             for row in table.cells.indices { for col in table.cells[row].indices {

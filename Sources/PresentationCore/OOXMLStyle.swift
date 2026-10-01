@@ -7,7 +7,7 @@ extension PowerPoint {
         func alpha(_ color: RGBA) -> RGBA { RGBA(color.red,color.green,color.blue,color.alpha*object.opacity) }
         var fill: String
         let isLine=[ShapeKind.line,.arrow,.doubleArrow].contains(object.shape)
-        if object.kind == .text || isLine { fill="<a:noFill/>" }
+        if object.kind == .text || object.kind == .image || isLine { fill="<a:noFill/>" }
         else if let gradient=object.style.gradient {
             let angle=(gradient.angle.truncatingRemainder(dividingBy:360)+360).truncatingRemainder(dividingBy:360)
             fill="<a:gradFill rotWithShape=\"1\"><a:gsLst><a:gs pos=\"0\">\(color(alpha(object.style.fill ?? theme.accent)))</a:gs><a:gs pos=\"100000\">\(color(alpha(gradient.end)))</a:gs></a:gsLst><a:lin ang=\"\(Int(angle*60000))\" scaled=\"1\"/></a:gradFill>"
