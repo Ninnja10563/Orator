@@ -3,24 +3,7 @@ import UniformTypeIdentifiers
 import PresentationCore
 
 extension EditorWindowController {
-    @objc func exportPDF(_ sender: Any?) {
-        canvas.finishText(); let panel=NSSavePanel(); panel.allowedContentTypes=[.pdf]; panel.nameFieldStringValue="\(presentation.displayName ?? "Presentation").pdf"
-        panel.beginSheetModal(for:window!) { [weak self] response in
-            guard response == .OK, let self=self, let url=panel.url else { return }
-            do {
-                let data=NSMutableData(); guard let consumer=CGDataConsumer(data:data) else { throw FormatError.invalid("could not create PDF") }
-                var box=CGRect(x:0,y:0,width:self.presentation.deck.width,height:self.presentation.deck.height)
-                guard let context=CGContext(consumer:consumer,mediaBox:&box,nil) else { throw FormatError.invalid("could not create PDF context") }
-                for slide in self.presentation.deck.slides {
-                    context.beginPDFPage(nil); context.saveGState(); context.translateBy(x:0,y:box.height); context.scaleBy(x:1,y:-1)
-                    NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current=NSGraphicsContext(cgContext:context,flipped:true)
-                    SlideRenderer.shared.draw(slide:slide,deck:self.presentation.deck,in:box)
-                    NSGraphicsContext.restoreGraphicsState(); context.restoreGState(); context.endPDFPage()
-                }
-                context.closePDF(); try (data as Data).write(to:url,options:.atomic)
-            } catch { self.presentation.presentError(error) }
-        }
-    }
+    @objc func exportPDF(_ sender: Any?) { savePDF(includeNotes:false) }
     @objc func exportPPTX(_ sender: Any?) {
         canvas.finishText(); let panel=NSSavePanel(); panel.allowedContentTypes=[UTType(filenameExtension:"pptx")!]; panel.nameFieldStringValue="\(presentation.displayName ?? "Presentation").pptx"
         panel.beginSheetModal(for:window!) { [weak self] response in

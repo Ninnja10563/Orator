@@ -1,4 +1,5 @@
 import AppKit
+import PDFKit
 import PresentationCore
 
 @objc(PresentationDocument)
@@ -20,6 +21,11 @@ final class PresentationDocument: NSDocument {
         return snapshot
     }
     override func data(ofType typeName: String) throws -> Data { try PresentationFile.encode(snapshot) }
+    override func printOperation(withSettings printSettings: [NSPrintInfo.AttributeKey:Any]) throws -> NSPrintOperation {
+        let settings=printInfo.copy() as! NSPrintInfo; settings.dictionary().addEntries(from:printSettings)
+        guard let pdf=PDFDocument(data:try PDFExporter.data(snapshot)), let operation=pdf.printOperation(for:settings,scalingMode:.pageScaleDownToFit,autoRotate:true) else { throw FormatError.invalid("could not prepare the presentation for printing") }
+        return operation
+    }
     override func close() {
         recoveryTimer?.invalidate()
         let session=recoverySession

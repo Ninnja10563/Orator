@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import PDFKit
 import AVKit
 import PresentationCore
 
@@ -56,6 +57,10 @@ func checkAdvancedEditing(_ editor: EditorWindowController) throws {
     let savedGroup=try PresentationFile.decode(document.data(ofType:"app.orator.presentation"))
     guard savedGroup.slides[0].objects.first(where: { $0.id == groupID })?.children.first?.text == "Saved inside group" else { fatalError("Active group text was omitted from saving") }
     grouped { editor.canvas.finishText() }; document.undoManager?.undo(); editor.finishGroupEditing(nil)
+    var notesDeck=document.deck; notesDeck.slides=Array(notesDeck.slides.prefix(1)); notesDeck.slides[0].notes=String(repeating:"Speaker notes must continue across printed pages.\n",count:100)+"FINAL NOTES MARKER"
+    let notesPDF=try PDFExporter.data(notesDeck,includeNotes:true)
+    guard let pdf=PDFDocument(data:notesPDF), pdf.pageCount > 1, pdf.string?.contains("FINAL NOTES MARKER") == true else { fatalError("Speaker notes PDF pagination lost text") }
+    _=try document.printOperation(withSettings:[:])
     try checkMediaPlayback()
     document.deck=original; document.undoManager?.removeAllActions(); editor.editingMasterID=nil; editor.editingLayoutID=nil; editor.editingGroupIDs=[]; editor.selectedSlideID=original.slides[0].id; editor.canvas.selected=[]; editor.refresh(); editor.window?.makeKeyAndOrderFront(nil)
     print("Advanced AppKit checks: table cells/undo, chart series, crop geometry, master layouts, and AVFoundation playback passed")

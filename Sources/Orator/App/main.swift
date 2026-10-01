@@ -93,6 +93,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item(file,"Import PowerPoint…",#selector(importPPTX(_:))); file.items.last?.target=self
         file.addItem(.separator()); item(file,"Close",#selector(NSWindow.performClose(_:)),"w"); item(file,"Save",#selector(NSDocument.save(_:)),"s"); item(file,"Save As…",#selector(NSDocument.saveAs(_:)),"s",[.command,.shift]); file.addItem(.separator())
         item(file,"Export PDF…",#selector(EditorWindowController.exportPDF(_:))); item(file,"Export PowerPoint…",#selector(EditorWindowController.exportPPTX(_:)))
+        item(file,"Export Speaker Notes PDF…",#selector(EditorWindowController.exportNotesPDF(_:)))
+        item(file,"Print…",#selector(NSDocument.printDocument(_:)),"p")
         let edit=menu("Edit"); item(edit,"Undo",Selector(("undo:")),"z"); item(edit,"Redo",Selector(("redo:")),"z",[.command,.shift]); edit.addItem(.separator())
         for (title,selector,key) in [("Cut","cut:","x"),("Copy","copy:","c"),("Paste","paste:","v"),("Select All","selectAll:","a")] { item(edit,title,Selector(selector),key) }
         item(edit,"Duplicate Objects",#selector(EditorWindowController.duplicateObjects(_:)),"d"); item(edit,"Delete Objects",#selector(EditorWindowController.deleteObjects(_:)))
