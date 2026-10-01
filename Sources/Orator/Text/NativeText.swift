@@ -46,8 +46,14 @@ enum NativeText {
     }
     static func scaled(_ value: NSAttributedString, factor: Double) -> NSAttributedString {
         let copy=NSMutableAttributedString(attributedString:value)
-        value.enumerateAttribute(.font,in:NSRange(location:0,length:value.length)) { value,range,_ in
-            if let font=value as? NSFont { copy.addAttribute(.font,value:(NSFont(descriptor:font.fontDescriptor,size:font.pointSize*factor) ?? font),range:range) }
+        value.enumerateAttributes(in:NSRange(location:0,length:value.length)) { attributes,range,_ in
+            if let font=attributes[.font] as? NSFont { copy.addAttribute(.font,value:(NSFont(descriptor:font.fontDescriptor,size:font.pointSize*factor) ?? font),range:range) }
+            if let paragraph=attributes[.paragraphStyle] as? NSParagraphStyle, let scaled=paragraph.mutableCopy() as? NSMutableParagraphStyle {
+                scaled.headIndent *= factor; scaled.firstLineHeadIndent *= factor; scaled.lineSpacing *= factor; scaled.paragraphSpacing *= factor; scaled.paragraphSpacingBefore *= factor
+                copy.addAttribute(.paragraphStyle,value:scaled,range:range)
+            }
+            if let tracking=attributes[.kern] as? NSNumber { copy.addAttribute(.kern,value:tracking.doubleValue*factor,range:range) }
+            if var settings=attributes[paragraphKey] as? ParagraphSettings { settings.indent *= factor; settings.firstLineIndent *= factor; settings.before *= factor; settings.after *= factor; copy.addAttribute(paragraphKey,value:settings,range:range) }
         }
         return copy
     }

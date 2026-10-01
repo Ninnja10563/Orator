@@ -23,6 +23,14 @@ func checkAdvancedEditing(_ editor: EditorWindowController) throws {
     inline.undoManager?.redo(); guard NativeText.style(inline.textStorage!.attributes(at:0,effectiveRange:nil)).italic else { fatalError("Inline formatting redo failed") }
     guard NativeText.style(inline.textStorage!.attributes(at:0,effectiveRange:nil)).color == nil else { fatalError("Formatting broke theme inheritance") }
     grouped { editor.canvas.finishText() }; document.undoManager?.undo()
+    var listObject=SlideObject(kind:.text,name:"List editing",frame:Rect(80,80,800,400)); listObject.text="First item"; var listStyle=ParagraphSettings(); listStyle.list = .numbered; listObject.textStyle.paragraph=listStyle
+    grouped { editor.insert(listObject) }; editor.canvas.beginText(listObject)
+    let listEditor=editor.canvas.subviews.compactMap { $0 as? InlineTextView }.first!
+    listEditor.setSelectedRange(NSRange(location:listEditor.string.utf16.count,length:0)); listEditor.insertNewline(nil); listEditor.insertText("Second item",replacementRange:listEditor.selectedRange()); listEditor.insertTab(nil)
+    guard listEditor.layoutManager is ListLayoutManager, NativeText.style(listEditor.typingAttributes).paragraph?.level == 1 else { fatalError("Nested list editing failed") }
+    let listSaved=try PresentationFile.decode(document.data(ofType:"app.orator.presentation"))
+    guard listSaved.slides[0].objects.last?.text == "First item\nSecond item", listSaved.slides[0].objects.last?.textRuns?.last?.style.paragraph?.level == 1 else { fatalError("List edit persistence failed") }
+    grouped { editor.canvas.finishText() }; document.undoManager?.undo(); document.undoManager?.undo()
     let tableObject=editor.currentSlide.objects.first { $0.kind == .table }!
     let table=TableEditor(editor:editor,object:tableObject)
     grouped { table.tableView(table.grid,setObjectValue:"Edited in AppKit",for:table.grid.tableColumns[1],row:1) }

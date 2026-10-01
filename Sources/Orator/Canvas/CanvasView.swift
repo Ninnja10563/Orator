@@ -10,9 +10,40 @@ final class InlineTextView: NSTextView {
     private let typingUndo=UndoManager()
     override var undoManager: UndoManager? { typingUndo }
     override func insertNewline(_ sender: Any?) {
-        if (NativeText.style(typingAttributes).paragraph?.list ?? .none) != .none {
-            insertText("\n",replacementRange:selectedRange())
-        } else { super.insertNewline(sender) }
+        let style=NativeText.style(typingAttributes)
+        guard (style.paragraph?.list ?? .none) != .none else { super.insertNewline(sender); return }
+        let range=(string as NSString).paragraphRange(for:selectedRange())
+        if (string as NSString).substring(with:range).trimmingCharacters(in:.whitespacesAndNewlines).isEmpty {
+            changeListLevel(exit:true)
+        } else { insertText("\n",replacementRange:selectedRange()) }
+    }
+    override func insertTab(_ sender: Any?) {
+        if (NativeText.style(typingAttributes).paragraph?.list ?? .none) != .none { changeListLevel(delta:1) }
+        else { super.insertTab(sender) }
+    }
+    override func insertBacktab(_ sender: Any?) {
+        if (NativeText.style(typingAttributes).paragraph?.list ?? .none) != .none { changeListLevel(delta:-1) }
+        else { super.insertBacktab(sender) }
+    }
+    private func changeListLevel(delta: Int = 0,exit: Bool = false) {
+        guard let storage=textStorage else { return }
+        let old=NSAttributedString(attributedString:storage), oldTyping=typingAttributes, selection=selectedRange()
+        let range=(string as NSString).paragraphRange(for:selection)
+        func changed(_ attributes: [NSAttributedString.Key:Any]) -> [NSAttributedString.Key:Any] {
+            var result=attributes
+            var settings=(attributes[NativeText.paragraphKey] as? ParagraphSettings) ?? NativeText.style(attributes).paragraph ?? ParagraphSettings()
+            settings.level=min(8,max(0,settings.level+delta)); if exit { settings.list = .none }
+            var style=NativeText.style(attributes); style.paragraph=settings
+            let paragraph=style.attributes(theme:Theme.all[0])[.paragraphStyle]
+            result[.paragraphStyle]=paragraph; result[NativeText.paragraphKey]=settings
+            return result
+        }
+        var replacements: [(NSRange,[NSAttributedString.Key:Any])]=[]
+        storage.enumerateAttributes(in:range) { attrs,subrange,_ in replacements.append((subrange,changed(attrs))) }
+        for (subrange,attributes) in replacements { storage.setAttributes(attributes,range:subrange) }
+        typingAttributes=changed(typingAttributes)
+        undoManager?.registerUndo(withTarget:self) { $0.restoreFormatting(old,typing:oldTyping,selection:selection,name:"Change List") }; undoManager?.setActionName("Change List")
+        setSelectedRange(selection); didChangeText()
     }
     func restoreFormatting(_ value: NSAttributedString,typing: [NSAttributedString.Key:Any],selection: NSRange,name: String) {
         let previous=NSAttributedString(attributedString:attributedString()), previousTyping=typingAttributes, previousSelection=selectedRange()
