@@ -21,6 +21,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
     var pan=NSPoint.zero
     var showRulers=false { didSet { needsDisplay=true } }
     var showGuides = true
+    var motionPathID: UUID? { didSet { needsDisplay=true } }
     var preview: Slide?
     private var origin=Point()
     private var original: Slide?
@@ -31,7 +32,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
     private var textEditor: NSTextView?
     private var editingID: UUID?
     private var editingCell: (Int,Int)?
-    enum DragMode { case none, move, resize(Int), rotate, marquee, guide(Bool) }
+    enum DragMode { case none, move, resize(Int), rotate, marquee, guide(Bool), motion(UUID,Int) }
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
     override init(frame: NSRect) {
@@ -82,6 +83,11 @@ final class CanvasView: NSView, NSTextViewDelegate {
         if let selection=Geometry.bounds(slide.objects.filter { selected.contains($0.id) }), textEditor == nil {
             for handle in handles(selection) { NSColor.controlBackgroundColor.setFill(); NSColor.controlAccentColor.setStroke(); let p=NSBezierPath(ovalIn:handle); p.fill(); p.stroke() }
         }
+        if let id=motionPathID, let animation=slide.animations?.first(where: { $0.id == id }), animation.effect == .motionPath {
+            let points=animation.path.map { NSPoint(x:slideRect.minX+$0.x*scale,y:slideRect.minY+$0.y*scale) }
+            let path=NSBezierPath(); if let first=points.first { path.move(to:first); for point in points.dropFirst() { path.line(to:point) } }; NSColor.systemOrange.setStroke(); path.setLineDash([5,3],count:2,phase:0); path.lineWidth=2; path.stroke()
+            for point in points { NSColor.controlBackgroundColor.setFill(); NSColor.systemOrange.setStroke(); let handle=NSBezierPath(ovalIn:NSRect(x:point.x-5,y:point.y-5,width:10,height:10)); handle.fill(); handle.stroke() }
+        }
         if let m=marquee { NSColor.controlAccentColor.withAlphaComponent(0.10).setFill(); viewRect(m).fill(); NSColor.controlAccentColor.setStroke(); NSBezierPath(rect:viewRect(m)).stroke() }
     }
     func handles(_ r: Rect) -> [NSRect] {
@@ -92,6 +98,10 @@ final class CanvasView: NSView, NSTextViewDelegate {
         finishText(); window?.makeFirstResponder(self)
         let p=slidePoint(event); origin=p; original=slide
         let location=convert(event.locationInWindow,from:nil)
+        if let id=motionPathID, let animation=slide.animations?.first(where: { $0.id == id }) {
+            if let index=animation.path.firstIndex(where: { hypot($0.x-p.x,$0.y-p.y)*scale < 12 }) { mode = .motion(id,index); return }
+            if event.modifierFlags.contains(.option), var changed=original, let index=changed.animations?.firstIndex(where: { $0.id == id }) { changed.animations?[index].path.append(p); editor?.commit(changed,name:"Add Motion Path Point"); original=nil; return }
+        }
         if showRulers && (location.x < 20 || location.y < 20) { mode = .guide(location.x < 20); return }
         let candidates=slide.objects.filter { selected.contains($0.id) && !$0.locked }; originalBounds=Geometry.bounds(candidates)
         if let b=originalBounds, let index=handles(b).firstIndex(where: { $0.insetBy(dx:-4,dy:-4).contains(convert(event.locationInWindow,from:nil)) }) {
@@ -110,6 +120,9 @@ final class CanvasView: NSView, NSTextViewDelegate {
         let p=slidePoint(event), dx=p.x-origin.x, dy=p.y-origin.y
         switch mode {
         case .none: return
+        case let .motion(id,point):
+            guard let index=draft.animations?.firstIndex(where: { $0.id == id }) else { return }
+            draft.animations?[index].path[point]=p; preview=draft
         case .guide(let vertical):
             draft.guides.append(Guide(vertical:vertical,position:vertical ? p.x : p.y)); preview=draft
         case .marquee:
@@ -151,7 +164,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
         original=nil; needsDisplay=true
     }
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 { finishText(); preview=nil; original=nil; mode = .none; selected=[]; return }
+        if event.keyCode == 53 { motionPathID=nil; finishText(); preview=nil; original=nil; mode = .none; selected=[]; return }
         if event.keyCode == 36, let o=slide.objects.first(where: { selected.contains($0.id) && ($0.kind == .text || $0.kind == .shape) }) { beginText(o); return }
         if event.keyCode == 48 {
             let items=slide.objects.filter { !$0.hidden && !$0.locked }; guard !items.isEmpty else { return }
