@@ -5,7 +5,10 @@ import PresentationCore
 @objc(PresentationDocument)
 final class PresentationDocument: NSDocument {
     static let recoveryQueue=DispatchQueue(label:"app.orator.recovery",qos:.utility)
-    static let recoveryStore=RecoveryStore(directory:FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("Orator/Recovery",isDirectory:true))
+    static let recoveryStore: RecoveryStore = {
+        if CommandLine.arguments.contains(where: { $0 == "--recovery-write-test" || $0 == "--recovery-read-test" }), let path=ProcessInfo.processInfo.environment["ORATOR_RECOVERY_DIRECTORY"] { return RecoveryStore(directory:URL(fileURLWithPath:path)) }
+        return RecoveryStore(directory:FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("Orator/Recovery",isDirectory:true))
+    }()
     var recoverySession=UUID()
     private var recoveryTimer: Timer?
     var deck=Presentation()

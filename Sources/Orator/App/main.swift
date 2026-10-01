@@ -5,6 +5,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         if CommandLine.arguments.contains("--dark") { NSApp.appearance=NSAppearance(named:.darkAqua) }
         buildMenus(); NSApp.activate(ignoringOtherApps:true)
+        if runRecoveryCheck() { return }
         if CommandLine.arguments.contains("--smoke-test") {
             do {
                 let type=NSDocumentController.shared.defaultType ?? "app.orator.presentation"

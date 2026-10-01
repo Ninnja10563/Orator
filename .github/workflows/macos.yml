@@ -18,6 +18,8 @@ jobs:
         run: ORATOR_SMOKE_OUTPUT="$PWD/build/smoke.tiff" build/Orator.app/Contents/MacOS/Orator --smoke-test
       - name: Launch and verify editing in dark appearance
         run: ORATOR_SMOKE_OUTPUT="$PWD/build/smoke-dark.tiff" build/Orator.app/Contents/MacOS/Orator --smoke-test --dark
+      - name: Recover active editing after forced termination
+        run: python3 scripts/check-recovery.py
       - name: Check exported PPTX with an independent library
         run: |
           python3 -m venv /tmp/orator-validation
