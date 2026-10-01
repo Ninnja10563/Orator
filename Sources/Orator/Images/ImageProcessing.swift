@@ -34,7 +34,7 @@ final class ImageProcessingController: NSWindowController {
                 guard current?.image?.assetID == object.image?.assetID else { self?.close(); return }
                 editor.presentation.undoManager?.beginUndoGrouping()
                 editor.presentation.perform(.putAsset(asset),named:"Remove Background")
-                editor.modifyObject(object.id,on:slideID,name:"Remove Background") { value in value.image?.originalAssetID=value.image?.originalAssetID ?? value.image?.assetID; value.image?.assetID=asset.id }
+                editor.modifyObject(object.id,on:slideID,name:"Remove Background") { value in let original=value.image?.originalAssetID ?? value.image?.assetID; value.image?.originalAssetID=original; value.image?.assetID=asset.id }
                 editor.presentation.undoManager?.endUndoGrouping(); self?.close()
             } catch is CancellationError { self?.close() }
             catch { self?.close(); editor?.presentation.presentError(error) }

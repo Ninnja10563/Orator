@@ -159,7 +159,7 @@ final class InspectorView: SurfaceView {
     @objc func editData() { editor?.editData(nil) }
     @objc func toggleImageFill() { editor?.mutateSelection("Fit Image") { $0.image?.fill.toggle() } }
     @objc func flipImage() { editor?.mutateSelection("Flip Image") { $0.image?.flippedHorizontally.toggle() } }
-    @objc func flipImageVertically() { editor?.mutateSelection("Flip Image") { $0.image?.flippedVertically = !($0.image?.flippedVertically ?? false) } }
+    @objc func flipImageVertically() { editor?.mutateSelection("Flip Image") { let flipped = !($0.image?.flippedVertically ?? false); $0.image?.flippedVertically=flipped } }
     @objc func removeBackground() { editor?.removeImageBackground(nil) }
     @objc func restoreBackground() { editor?.restoreImageBackground(nil) }
     @objc func resetCrop() { editor?.mutateSelection("Reset Crop") { $0.image?.crop=Rect(0,0,1,1) } }
