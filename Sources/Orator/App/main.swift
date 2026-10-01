@@ -31,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 editor.refresh()
                 try checkEditingInteractions(editor)
                 try checkAdvancedEditing(editor)
+                try checkLargeDeckEditing(editor)
                 RunLoop.current.run(until:Date().addingTimeInterval(0.3))
                 let data=try document.data(ofType:"app.orator.presentation"); _ = try PresentationFile.decode(data)
                 let nativeURL=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".orator")

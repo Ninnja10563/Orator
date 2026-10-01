@@ -35,6 +35,7 @@ Large image/media documents still incur JSON encoding and embedded-data overhead
 - PDF speaker-note pagination and native print-operation creation.
 - PPTX fixtures from an independent producer; editable tables/charts/groups, font units, theme/layout inheritance, attached connectors and transition settings.
 - Export validation with python-pptx and Microsoft's Open XML SDK, including embedded XLSX chart data.
+- Native drag/draw/undo interactions in a 500-slide, 12,000-object document, with observed frame timing logged and a coarse hang guard. This is not a substitute for a hardware performance matrix.
 - Native app launches and visual captures of light/dark workspaces and table/chart/crop editors.
 
 CI artifacts provide the exact app archive and captures associated with each commit. Schema validity is evidence of structural compatibility, not a guarantee of identical rendering in PowerPoint.
