@@ -51,8 +51,11 @@ final class InspectorView: SurfaceView {
         button("Edit table / chart data…",#selector(editData))
         button("Image: Fit / Fill",#selector(toggleImageFill))
         button("Flip Image Horizontally",#selector(flipImage))
+        button("Flip Image Vertically",#selector(flipImageVertically))
         button("Crop Image…",#selector(cropImage))
         button("Reset Image Crop",#selector(resetCrop))
+        button("Remove Background…",#selector(removeBackground))
+        button("Restore Original Image",#selector(restoreBackground))
         button("Reset Theme Colors",#selector(resetColors))
         button("Playback Settings…",#selector(playbackSettings))
         button("Preview Media",#selector(previewMedia))
@@ -87,7 +90,7 @@ final class InspectorView: SurfaceView {
             for title in ["Playback Settings…","Preview Media"] { labeledViews[title]?.isHidden = ![.video,.audio].contains(o.kind) }
             labeledViews["Chart type"]?.isHidden=o.kind != .chart
             labeledViews["Edit table / chart data…"]?.isHidden = ![.chart,.table].contains(o.kind)
-            for title in ["Image: Fit / Fill","Flip Image Horizontally","Crop Image…","Reset Image Crop"] { labeledViews[title]?.isHidden=o.kind != .image }
+            for title in ["Image: Fit / Fill","Flip Image Horizontally","Flip Image Vertically","Crop Image…","Reset Image Crop","Remove Background…","Restore Original Image"] { labeledViews[title]?.isHidden=o.kind != .image }
             labeledViews["Reset Theme Colors"]?.isHidden=o.kind == .image
             labeledViews["Fill"]?.isHidden=o.kind != .shape
         }
@@ -156,18 +159,18 @@ final class InspectorView: SurfaceView {
     @objc func editData() { editor?.editData(nil) }
     @objc func toggleImageFill() { editor?.mutateSelection("Fit Image") { $0.image?.fill.toggle() } }
     @objc func flipImage() { editor?.mutateSelection("Flip Image") { $0.image?.flippedHorizontally.toggle() } }
+    @objc func flipImageVertically() { editor?.mutateSelection("Flip Image") { $0.image?.flippedVertically = !($0.image?.flippedVertically ?? false) } }
+    @objc func removeBackground() { editor?.removeImageBackground(nil) }
+    @objc func restoreBackground() { editor?.restoreImageBackground(nil) }
     @objc func resetCrop() { editor?.mutateSelection("Reset Crop") { $0.image?.crop=Rect(0,0,1,1) } }
     @objc func cropImage() {
         guard let editor=editor, let object=editor.currentSlide.objects.first(where: { editor.canvas.selected.contains($0.id) }), let image=object.image else { return }
-        let alert=NSAlert(); alert.messageText="Crop image"; alert.informativeText="Enter the source crop as percentages: left, top, width, height. The original image is preserved."
-        let field=NSTextField(frame:NSRect(x:0,y:0,width:320,height:24)); let c=image.crop; field.stringValue="\(c.x*100), \(c.y*100), \(c.width*100), \(c.height*100)"; alert.accessoryView=field; alert.addButton(withTitle:"Crop"); alert.addButton(withTitle:"Cancel")
-        alert.beginSheetModal(for:editor.window!) { response in
-            guard response == .alertFirstButtonReturn else { return }
-            let values=field.stringValue.split(separator:",").compactMap { Double($0.trimmingCharacters(in:.whitespaces)) }
-            guard values.count == 4, values.allSatisfy(\.isFinite), values[0] >= 0, values[1] >= 0, values[2] > 0, values[3] > 0, values[0]+values[2] <= 100, values[1]+values[3] <= 100 else { editor.presentation.presentError(FormatError.invalid("crop percentages must stay inside the image")); return }
-            editor.mutateSelection("Crop Image") { $0.image?.crop=Rect(values[0]/100,values[1]/100,values[2]/100,values[3]/100) }
-        }
+        guard let source=SlideRenderer.shared.image(image.assetID,in:editor.presentation.deck) else { return }
+        let slideID=editor.currentSlide.id
+        let panel=CropEditor(image:source,content:image) { [weak editor] crop,mask in editor?.modifyObject(object.id,on:slideID,name:"Crop Image") { $0.image?.crop=crop; $0.image?.mask=mask } }
+        editor.toolWindows.append(panel); panel.showWindow(nil)
     }
+
     @objc func resetColors() { editor?.mutateSelection("Reset Theme Colors") { $0.style.fill=nil; $0.textStyle.color=nil } }
     @objc func playbackSettings() { editor?.mediaSettings(nil) }
     @objc func previewMedia() { editor?.previewMedia(nil) }

@@ -58,8 +58,8 @@ public enum PowerPoint {
                     let url=root.appendingPathComponent(path); try FileManager.default.createDirectory(at:url.deletingLastPathComponent(),withIntermediateDirectories:true); try asset.data.write(to:url)
                     let rid="rIdImage\(id)"; rels += relationship(rid,"image","../media/\(filename)")
                     let c=image.crop
-                    let imageTransform=xfrm(o).replacingOccurrences(of:"<a:xfrm ",with:"<a:xfrm flipH=\"\(image.flippedHorizontally ? 1 : 0)\" ")
-                    return "<p:pic><p:nvPicPr>\(nv)<p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed=\"\(rid)\"/><a:srcRect l=\"\(Int(c.x*100000))\" t=\"\(Int(c.y*100000))\" r=\"\(Int((1-c.maxX)*100000))\" b=\"\(Int((1-c.maxY)*100000))\"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>\(imageTransform)<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
+                    let imageTransform=xfrm(o).replacingOccurrences(of:"<a:xfrm ",with:"<a:xfrm flipH=\"\(image.flippedHorizontally ? 1 : 0)\" flipV=\"\(image.flippedVertically == true ? 1 : 0)\" ")
+                    return "<p:pic><p:nvPicPr>\(nv)<p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed=\"\(rid)\"/><a:srcRect l=\"\(Int(c.x*100000))\" t=\"\(Int(c.y*100000))\" r=\"\(Int((1-c.maxX)*100000))\" b=\"\(Int((1-c.maxY)*100000))\"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>\(imageTransform)<a:prstGeom prst=\"\(image.mask == .ellipse ? "ellipse" : image.mask == .roundedRectangle ? "roundRect" : "rect")\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
                 }
                 if o.kind == .table, let table=o.table, let columns=table.cells.first?.count, columns > 0 {
                     return "<p:graphicFrame><p:nvGraphicFramePr>\(nv)<p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x=\"\(emu(o.frame.x))\" y=\"\(emu(o.frame.y))\"/><a:ext cx=\"\(emu(o.frame.width))\" cy=\"\(emu(o.frame.height))\"/></p:xfrm><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/table\">\(tableXML(table,object:o,theme:deck.theme))</a:graphicData></a:graphic></p:graphicFrame>"
@@ -211,7 +211,7 @@ public enum PowerPoint {
                     guard let blip=node.first("blip"), let target=links[blip.attr("r:embed")] else { warnings.insert("An externally linked image was omitted."); continue }
                     let asset=Asset(name:URL(fileURLWithPath:target).lastPathComponent,data:try read(target)); deck.assets[asset.id]=asset; object.kind = .image; object.image=ImageContent(assetID:asset.id)
                     if let crop=node.first("srcRect") { let l=crop.number("l")/100000,t=crop.number("t")/100000; object.image?.crop=Rect(l,t,1-l-crop.number("r")/100000,1-t-crop.number("b")/100000) }
-                    object.image?.fill=true; object.image?.flippedHorizontally=transform?.attr("flipH") == "1"
+                    object.image?.fill=true; object.image?.flippedHorizontally=transform?.attr("flipH") == "1"; object.image?.flippedVertically=transform?.attr("flipV") == "1"; object.image?.mask=geometry == "ellipse" ? .ellipse : geometry == "roundRect" ? .roundedRectangle : .rectangle
                     if let reference=node.first("videoFile") ?? node.first("audioFile"), let target=links[reference.attr("r:link")] {
                         let mediaAsset=Asset(name:URL(fileURLWithPath:target).lastPathComponent,data:try read(target)); deck.assets[mediaAsset.id]=mediaAsset
                         object.kind=reference.localName == "videoFile" ? .video : .audio

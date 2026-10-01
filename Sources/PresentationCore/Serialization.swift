@@ -57,7 +57,7 @@ public enum PresentationFile {
                     guard deck.assets[media.assetID] != nil, media.trimStart.isFinite, media.trimStart >= 0, media.trimEnd.map({ $0.isFinite && $0 > media.trimStart }) ?? true, media.volume.isFinite, (0...1).contains(media.volume), media.fadeIn.isFinite, media.fadeOut.isFinite, media.fadeIn >= 0, media.fadeOut >= 0 else { throw FormatError.invalid("invalid media settings") }
                 }
                 if let image=o.image {
-                    guard deck.assets[image.assetID] != nil else { throw FormatError.invalid("missing image asset") }
+                    guard deck.assets[image.assetID] != nil, image.originalAssetID.map({ deck.assets[$0] != nil }) ?? true else { throw FormatError.invalid("missing image asset") }
                     let c=image.crop
                     guard [c.x,c.y,c.width,c.height].allSatisfy(\.isFinite), c.x >= 0, c.y >= 0, c.width > 0, c.height > 0, c.maxX <= 1.00001, c.maxY <= 1.00001 else { throw FormatError.invalid("invalid image crop") }
                 }
@@ -85,7 +85,7 @@ public struct ObjectClipboard: Codable {
     public var objects: [SlideObject]; public var assets: [UUID: Asset]
     public init(objects: [SlideObject], assets: [UUID: Asset]) {
         self.objects=objects
-        func assetIDs(_ objects: [SlideObject]) -> [UUID] { objects.flatMap { ($0.image.map { [$0.assetID] } ?? []) + ($0.media.map { [$0.assetID]+($0.posterAssetID.map { [$0] } ?? []) } ?? []) + assetIDs($0.children) } }
+        func assetIDs(_ objects: [SlideObject]) -> [UUID] { objects.flatMap { ($0.image.map { [$0.assetID]+($0.originalAssetID.map { [$0] } ?? []) } ?? []) + ($0.media.map { [$0.assetID]+($0.posterAssetID.map { [$0] } ?? []) } ?? []) + assetIDs($0.children) } }
         let used=Set(assetIDs(objects)); self.assets=assets.filter { used.contains($0.key) }
     }
 }

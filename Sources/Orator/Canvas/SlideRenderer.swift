@@ -66,7 +66,7 @@ final class SlideRenderer {
             if !o.text.isEmpty { drawRichText(o,rect:r.insetBy(dx:12,dy:10),theme:deck.theme) }
         case .image:
             guard let content=o.image, let image=image(content.assetID,in:deck) else { return }
-            r.clip()
+            switch content.mask ?? .rectangle { case .rectangle:r.clip(); case .roundedRectangle:NSBezierPath(roundedRect:r,xRadius:o.style.cornerRadius,yRadius:o.style.cornerRadius).addClip(); case .ellipse:NSBezierPath(ovalIn:r).addClip() }
             let size=image.size, c=content.crop
             let source=NSRect(x:c.x*size.width,y:(1-c.maxY)*size.height,width:c.width*size.width,height:c.height*size.height)
             let ratio=content.fill ? max(r.width/source.width,r.height/source.height) : min(r.width/source.width,r.height/source.height)
@@ -75,6 +75,7 @@ final class SlideRenderer {
                 let flip=NSAffineTransform(); flip.translateX(by:r.midX,yBy:0); flip.scaleX(by:-1,yBy:1); flip.translateX(by:-r.midX,yBy:0); flip.concat()
                 dest.origin.x=r.minX+(r.maxX-dest.maxX)
             }
+            if content.flippedVertically == true { let flip=NSAffineTransform(); flip.translateX(by:0,yBy:r.midY); flip.scaleX(by:1,yBy:-1); flip.translateX(by:0,yBy:-r.midY); flip.concat() }
             image.draw(in:dest,from:source,operation:.sourceOver,fraction:1,respectFlipped:true,hints:[.interpolation:NSImageInterpolation.high.rawValue])
         case .table:
             guard let table=o.table, !table.cells.isEmpty, let count=table.cells.first?.count, count > 0 else { return }

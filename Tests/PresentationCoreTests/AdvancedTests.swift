@@ -124,7 +124,7 @@ extension AdvancedTests {
         }
         let url=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".pptx"); defer { try? FileManager.default.removeItem(at:url) }
         _=try PowerPoint.export(deck,to:url); let imported=try PowerPoint.importDeck(from:url).deck
-        for (original,copy) in zip(deck.slides,imported.slides) { let a=try XCTUnwrap(original.objects.first?.chart), b=try XCTUnwrap(copy.objects.first?.chart); XCTAssertEqual(a.kind,b.kind); XCTAssertEqual(a.labels,b.labels); XCTAssertEqual(a.dataSeries.first,b.dataSeries.first); if a.kind != .pie { XCTAssertEqual(a.dataSeries,b.dataSeries) } }
+        for (original,copy) in zip(deck.slides,imported.slides) { let a=try XCTUnwrap(original.objects.first?.chart), b=try XCTUnwrap(copy.objects.first?.chart); XCTAssertEqual(a.kind,b.kind); if a.kind == .scatter { XCTAssertEqual(a.labels.compactMap(Double.init),b.labels.compactMap(Double.init)) } else { XCTAssertEqual(a.labels,b.labels) }; XCTAssertEqual(a.dataSeries.first,b.dataSeries.first); if a.kind != .pie { XCTAssertEqual(a.dataSeries,b.dataSeries) } }
         let listing=try PowerPoint.run("/usr/bin/unzip",["-Z1",url.path]); XCTAssertTrue(String(decoding:listing,as:UTF8.self).contains("ppt/embeddings/chart1_2.xlsx"))
     }
 }

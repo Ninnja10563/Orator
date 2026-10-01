@@ -52,11 +52,15 @@ public struct ObjectStyle: Codable, Equatable, Sendable {
     public var cornerRadius: Double = 16
     public init() {}
 }
+public enum ImageMask: String, Codable, CaseIterable, Sendable { case rectangle, roundedRectangle, ellipse }
 public struct ImageContent: Codable, Equatable, Sendable {
     public var assetID: UUID
     /// Normalized source rectangle. Original bytes remain in the asset store.
     public var crop = Rect(0,0,1,1)
     public var flippedHorizontally = false
+    public var flippedVertically: Bool? = nil
+    public var mask: ImageMask? = nil
+    public var originalAssetID: UUID? = nil
     public var fill = false
     public init(assetID: UUID) { self.assetID = assetID }
 }
