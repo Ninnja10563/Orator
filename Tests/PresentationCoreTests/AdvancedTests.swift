@@ -114,3 +114,17 @@ extension AdvancedTests {
         let frame=imported.cellFrame(row:0,column:0,in:object.frame); XCTAssertEqual(frame.width,300,accuracy:0.01); XCTAssertEqual(frame.height,150,accuracy:0.01)
     }
 }
+
+extension AdvancedTests {
+    func testAllChartTypesRoundTripWithEmbeddedWorkbook() throws {
+        var deck=Presentation(); deck.slides=[]
+        for kind in ChartKind.allCases {
+            var slide=Slide(); var object=SlideObject(kind:.chart,name:"Chart",frame:Rect(100,100,800,480)); var chart=ChartContent(); chart.kind=kind; chart.labels=["1","2","3","4"]
+            chart.setSeries([ChartSeries(name:"Revenue",values:[2,4,-1,8]),ChartSeries(name:"Costs",values:[1,2,3,4])]); object.chart=chart; slide.objects=[object]; deck.slides.append(slide)
+        }
+        let url=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".pptx"); defer { try? FileManager.default.removeItem(at:url) }
+        _=try PowerPoint.export(deck,to:url); let imported=try PowerPoint.importDeck(from:url).deck
+        for (original,copy) in zip(deck.slides,imported.slides) { let a=try XCTUnwrap(original.objects.first?.chart), b=try XCTUnwrap(copy.objects.first?.chart); XCTAssertEqual(a.kind,b.kind); XCTAssertEqual(a.labels,b.labels); XCTAssertEqual(a.dataSeries.first,b.dataSeries.first); if a.kind != .pie { XCTAssertEqual(a.dataSeries,b.dataSeries) } }
+        let listing=try PowerPoint.run("/usr/bin/unzip",["-Z1",url.path]); XCTAssertTrue(String(decoding:listing,as:UTF8.self).contains("ppt/embeddings/chart1_2.xlsx"))
+    }
+}

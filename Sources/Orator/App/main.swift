@@ -42,6 +42,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     let url=URL(fileURLWithPath:output)
                     try image.tiffRepresentation?.write(to:url)
                     _=try PowerPoint.export(document.deck,to:url.deletingLastPathComponent().appendingPathComponent("smoke.pptx"))
+                    var compatibility=document.deck
+                    for kind in ChartKind.allCases { var slide=Slide(); var object=SlideObject(kind:.chart,name:"Chart",frame:Rect(80,80,1000,560)); var chart=ChartContent(); chart.kind=kind; chart.labels=["1","2","3","4"]; chart.setSeries([ChartSeries(name:"Revenue",values:[24,38,31,52]),ChartSeries(name:"Costs",values:[20,25,23,30])]); object.chart=chart; slide.objects=[object]; compatibility.slides.append(slide) }
+                    _=try PowerPoint.export(compatibility,to:url.deletingLastPathComponent().appendingPathComponent("compatibility.pptx"))
                     if let view=editor.window?.contentView?.superview {
                         view.layoutSubtreeIfNeeded()
                         func redraw(_ node: NSView) { node.needsDisplay=true; for child in node.subviews { redraw(child) } }

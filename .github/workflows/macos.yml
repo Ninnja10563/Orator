@@ -23,6 +23,11 @@ jobs:
           python3 -m venv /tmp/orator-validation
           /tmp/orator-validation/bin/pip install python-pptx==1.0.2
           /tmp/orator-validation/bin/python scripts/pptx-fixtures.py build/smoke.pptx
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Validate exported Office XML schemas
+        run: dotnet run --project scripts/ValidateOOXML -- build/smoke.pptx build/compatibility.pptx
       - name: Restore arm64 distribution
         run: scripts/build-app.sh
       - name: Package
@@ -37,3 +42,4 @@ jobs:
             build/workspace.png
             build/workspace-dark.png
             build/smoke.pptx
+            build/compatibility.pptx

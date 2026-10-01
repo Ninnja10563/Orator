@@ -80,7 +80,14 @@ public enum PowerPoint {
                     let kind=o.kind == .video ? "videoFile" : "audioFile"
                     return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(xml(o.name))\"><a:hlinkClick r:id=\"\" action=\"ppaction://media\"/></p:cNvPr><p:cNvPicPr/><p:nvPr><a:\(kind) r:link=\"\(rid)\"/><p:extLst><p:ext uri=\"{DAA4B4D4-6D71-4841-9C94-3DE7FCFB33CC}\"><p14:media xmlns:p14=\"http://schemas.microsoft.com/office/powerpoint/2010/main\" r:embed=\"\(embed)\"/></p:ext></p:extLst></p:nvPr></p:nvPicPr><p:blipFill><a:blip r:embed=\"\(posterID)\"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>\(xfrm(o))<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
                 }
-                if o.kind == .chart { warnings.insert("Charts must be flattened to images before export; an unsupported chart was omitted."); return "" }
+                if let chart=o.chart, o.kind == .chart {
+                    let name="chart\(n)_\(id)", rid="rIdChart\(id)"
+                    try write("ppt/charts/\(name).xml",chartXML(chart,theme:deck.theme)); override("ppt/charts/\(name).xml","drawingml.chart")
+                    try writeWorkbook(chart,to:root.appendingPathComponent("ppt/embeddings/\(name).xlsx")); mediaTypes["xlsx"]="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    try write("ppt/charts/_rels/\(name).xml.rels",relationships(relationship("rIdWorkbook","package","../embeddings/\(name).xlsx")))
+                    rels += relationship(rid,"chart","../charts/\(name).xml")
+                    return "<p:graphicFrame><p:nvGraphicFramePr>\(nv)<p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x=\"\(emu(o.frame.x))\" y=\"\(emu(o.frame.y))\"/><a:ext cx=\"\(emu(o.frame.width))\" cy=\"\(emu(o.frame.height))\"/></p:xfrm><a:graphic><a:graphicData uri=\"\(chartNS)\"><c:chart xmlns:c=\"\(chartNS)\" r:id=\"\(rid)\"/></a:graphicData></a:graphic></p:graphicFrame>"
+                }
                 let shapes: [ShapeKind:String]=[.rectangle:"rect",.roundedRectangle:"roundRect",.ellipse:"ellipse",.triangle:"triangle",.diamond:"diamond",.star:"star5",.line:"line",.arrow:"rightArrow"]
                 let style=o.kind == .text ? "<a:noFill/><a:ln><a:noFill/></a:ln>" : solid(o.style.fill ?? deck.theme.accent)+"<a:ln w=\"\(emu(o.style.strokeWidth))\">\(solid(o.style.stroke))</a:ln>"
                 return "<p:sp><p:nvSpPr>\(nv)<p:cNvSpPr txBox=\"\(o.kind == .text ? 1 : 0)\"/><p:nvPr/></p:nvSpPr><p:spPr>\(xfrm(o))<a:prstGeom prst=\"\(shapes[o.shape] ?? "rect")\"><a:avLst/></a:prstGeom>\(style)</p:spPr><p:txBody><a:bodyPr wrap=\"square\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\"/><a:lstStyle/>\(paragraphs(o.text,style:o.textStyle,theme:deck.theme,runs:o.textRuns,hyperlink:{ target in hyperlinkNumber += 1; let id="rIdLink\(hyperlinkNumber)"; rels += "<Relationship Id=\"\(id)\" Type=\"\(r)/hyperlink\" Target=\"\(xml(target))\" TargetMode=\"External\"/>"; return id }))</p:txBody></p:sp>"
@@ -176,7 +183,7 @@ public enum PowerPoint {
         let root=try document("ppt/presentation.xml"), rels=try relations("ppt/presentation.xml")
         var deck=Presentation(); deck.slides=[]; deck.title=archive.deletingPathExtension().lastPathComponent
         if let size=root.first("sldSz") { deck.width=size.number("cx",default:12192000)/9525; deck.height=size.number("cy",default:6858000)/9525 }
-        var warnings=Set(["Import currently reads direct slide text, shapes, pictures, tables, notes and basic transitions. Master/layout inheritance, charts and animations are not preserved. Media playback settings may need adjustment. Keep the original PowerPoint file."])
+        var warnings=Set(["Import currently reads direct slide text, shapes, pictures, tables, notes and basic transitions. Master/layout inheritance and animations are not preserved. Media playback settings may need adjustment. Keep the original PowerPoint file."])
         for ref in root.descendants("sldId") {
             guard let path=rels[ref.attr("r:id")] else { throw FormatError.invalid("missing slide relationship") }
             let source=try document(path), links=try relations(path), textLinks=try relations(path,includeHyperlinks:true)
@@ -212,8 +219,9 @@ public enum PowerPoint {
                     }
                 }
                 if node.localName == "graphicFrame" {
-                    guard let table=node.first("tbl") else { warnings.insert("A chart or unsupported graphic was omitted."); continue }
-                    object.kind = .table; object.table=try readTable(table,style:object.textStyle,links:textLinks)
+                    if let table=node.first("tbl") { object.kind = .table; object.table=try readTable(table,style:object.textStyle,links:textLinks) }
+                    else if let chart=node.first("chart"), let target=links[chart.attr("r:id")] { object.kind = .chart; object.chart=try readChart(document(target)) }
+                    else { warnings.insert("An unsupported graphic was omitted."); continue }
                 }
                 slide.objects.append(object)
             }

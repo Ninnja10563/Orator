@@ -65,8 +65,8 @@ extension SlideRenderer {
         if let axis=chart.categoryAxisTitle, !axis.isEmpty { drawText(axis,style:label,rect:NSRect(x:plot.minX,y:plot.maxY+34,width:plot.width,height:22),theme:deck.theme) }
         if let axis=chart.valueAxisTitle, !axis.isEmpty { var style=label; style.alignment = .left; drawText(axis,style:style,rect:NSRect(x:plot.minX,y:r.minY+30,width:plot.width,height:20),theme:deck.theme) }
         if legend {
-            let names=chart.kind == .pie ? chart.labels : series.map(\.name), width=plot.width/Double(max(1,names.count))
-            for (i,name) in names.enumerated() { (chart.kind == .pie ? palette[i%palette.count].nsColor : color(i)).setFill(); NSRect(x:plot.minX+Double(i)*width,y:r.maxY-22,width:10,height:10).fill(); var style=label; style.alignment = .left; drawText(name,style:style,rect:NSRect(x:plot.minX+Double(i)*width+16,y:r.maxY-28,width:max(1,width-20),height:24),theme:deck.theme) }
+            let names=chart.kind == .pie ? chart.labels : series.map(\.name), width=Double(plot.width)/Double(max(1,names.count))
+            for (i,name) in names.enumerated() { (chart.kind == .pie ? palette[i%palette.count].nsColor : color(i)).setFill(); NSRect(x:Double(plot.minX)+Double(i)*width,y:r.maxY-22,width:10,height:10).fill(); var style=label; style.alignment = .left; drawText(name,style:style,rect:NSRect(x:Double(plot.minX)+Double(i)*width+16,y:r.maxY-28,width:max(1,width-20),height:24),theme:deck.theme) }
         }
     }
 }
