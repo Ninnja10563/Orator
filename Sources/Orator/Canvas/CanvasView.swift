@@ -9,6 +9,11 @@ final class AccessibleSlideObject: NSAccessibilityElement {
 final class InlineTextView: NSTextView {
     private let typingUndo=UndoManager()
     override var undoManager: UndoManager? { typingUndo }
+    override func insertNewline(_ sender: Any?) {
+        if (NativeText.style(typingAttributes).paragraph?.list ?? .none) != .none {
+            insertText("\n",replacementRange:selectedRange())
+        } else { super.insertNewline(sender) }
+    }
     func restoreFormatting(_ value: NSAttributedString,typing: [NSAttributedString.Key:Any],selection: NSRange,name: String) {
         let previous=NSAttributedString(attributedString:attributedString()), previousTyping=typingAttributes, previousSelection=selectedRange()
         undoManager?.registerUndo(withTarget:self) { target in target.restoreFormatting(previous,typing:previousTyping,selection:previousSelection,name:name) }
@@ -220,6 +225,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
         guard !object.locked else { return }
         editingID=object.id; editingCell=nil
         let view=InlineTextView(frame:viewRect(object.frame)); view.isRichText=true; view.drawsBackground=true; view.backgroundColor=(slide.background ?? deck.theme.background).nsColor
+        view.textContainer?.replaceLayoutManager(ListLayoutManager())
         view.textContainerInset=NSSize(width:0,height:0); view.textContainer?.lineFragmentPadding=0
         view.setBoundsSize(NSSize(width:object.frame.width,height:object.frame.height))
         view.textContainer?.containerSize=NSSize(width:object.frame.width,height:object.frame.height)
@@ -233,7 +239,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
     }
     @discardableResult func formatTextSelection(_ name: String, mutate: (inout TextStyle) -> Void) -> Bool {
         guard let view=textEditor, let storage=view.textStorage else { return false }
-        let selection=view.selectedRange()
+        let selection=name == "Format Paragraph" ? (view.string as NSString).paragraphRange(for:view.selectedRange()) : view.selectedRange()
         let before=NSAttributedString(attributedString:storage), beforeTyping=view.typingAttributes
         if selection.length == 0 {
             var style=NativeText.style(view.typingAttributes); mutate(&style)
@@ -270,7 +276,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
             if changed.objects[i].name == "Title" { changed.title=String(view.string.prefix(120)) }
             if editingCell == nil && changed.objects[i].textStyle.fit == .expand {
                 let object=changed.objects[i]
-                let size=NativeText.attributed(object,theme:deck.theme).boundingRect(with:NSSize(width:object.frame.width,height:100000),options:[.usesLineFragmentOrigin,.usesFontLeading])
+                let size=NativeText.measuredSize(NativeText.attributed(object,theme:deck.theme),width:object.frame.width)
                 changed.objects[i].frame.height=max(24,ceil(size.height)+4)
             }
         }

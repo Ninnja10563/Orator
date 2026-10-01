@@ -30,6 +30,7 @@ enum NativeText {
             if let list=p.textLists.last { options.list=list.markerFormat == .decimal ? .numbered : .bullet; options.level=max(0,p.textLists.count-1) }
             style.paragraph=options
         }
+        if let original=attributes[paragraphKey] as? ParagraphSettings { style.paragraph=original }
         return style
     }
     static func store(_ value: NSAttributedString, in object: inout SlideObject) {

@@ -19,9 +19,10 @@ extension TextStyle {
         if let options=paragraph {
             p.paragraphSpacingBefore=options.before; p.paragraphSpacing=options.after
             p.headIndent=options.indent; p.firstLineHeadIndent=options.firstLineIndent
-            if options.list != .none { p.textLists=(0...max(0,min(8,options.level))).map { _ in NSTextList(markerFormat:options.list == .numbered ? .decimal : .disc,options:0) } }
+            if options.list != .none { p.headIndent=options.indent+Double(options.level+1)*size*1.3; p.firstLineHeadIndent=p.headIndent; p.textLists=(0...max(0,min(8,options.level))).map { _ in NSTextList(markerFormat:options.list == .numbered ? .decimal : .disc,options:0) } }
         }
         var attributes: [NSAttributedString.Key:Any] = [.font: (NSFont(descriptor:font.fontDescriptor,size:size*scale) ?? font), .foregroundColor:(color ?? theme.foreground).nsColor, .paragraphStyle:p, .underlineStyle:underline ? NSUnderlineStyle.single.rawValue : 0, .strikethroughStyle:strikethrough == true ? NSUnderlineStyle.single.rawValue : 0, .kern:tracking ?? 0]
+        if let paragraph { attributes[NativeText.paragraphKey]=paragraph }
         if let highlight=highlight { attributes[.backgroundColor]=highlight.nsColor }
         if let link=hyperlink { attributes[.link]=link }
         if color == nil { attributes[NSAttributedString.Key("OratorThemeForeground")]=true }
@@ -122,11 +123,11 @@ final class SlideRenderer {
         var value=NativeText.attributed(object,theme:theme)
         if object.textStyle.fit == .shrink {
             var factor=1.0
-            while factor > 0.25 && value.boundingRect(with:NSSize(width:rect.width,height:100000),options:[.usesLineFragmentOrigin,.usesFontLeading]).height > rect.height {
+            while factor > 0.25 && NativeText.measuredSize(value,width:rect.width).height > rect.height {
                 factor -= 0.025; value=NativeText.scaled(NativeText.attributed(object,theme:theme),factor:factor)
             }
         }
-        value.draw(with:rect,options:[.usesLineFragmentOrigin,.usesFontLeading])
+        NativeText.draw(value,in:rect)
     }
     func drawText(_ text: String, style: TextStyle, rect: NSRect, theme: Theme) {
         NSGraphicsContext.saveGraphicsState(); defer { NSGraphicsContext.restoreGraphicsState() }
