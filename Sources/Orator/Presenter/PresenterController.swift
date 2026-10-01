@@ -63,6 +63,8 @@ final class PresenterController: NSObject, NSWindowDelegate {
     var transitionFrom: Slide?
     var transitionDuration=0.0
     var transitionKind: TransitionKind = .none
+    let media=MediaPlayback()
+    var mediaSlideID: UUID?
     var started=Date(); var paused=false; var pausedAt: Date?
     var elapsedLabel=NSTextField(labelWithString:"")
     var notes=NSTextView()
@@ -119,7 +121,15 @@ final class PresenterController: NSObject, NSWindowDelegate {
         }
         index=next; audience.black=false; update(); scheduleAdvance()
     }
+    var audienceRect: NSRect {
+        let scale=min(Double(audience.bounds.width)/deck.width,Double(audience.bounds.height)/deck.height)
+        return NSRect(x:(Double(audience.bounds.width)-deck.width*scale)/2,y:(Double(audience.bounds.height)-deck.height*scale)/2,width:deck.width*scale,height:deck.height*scale)
+    }
     func update() {
+        if mediaSlideID != deck.slides[index].id {
+            do { try media.install(slide:deck.slides[index],deck:deck,in:audience,rect:audienceRect) } catch { NSLog("Media playback failed: %@",error.localizedDescription) }
+            mediaSlideID=deck.slides[index].id
+        }
         audience.index=index; tick(); audience.needsDisplay=true; notes.string=deck.slides[index].notes
         if console != nil {
             currentImage.image=SlideRenderer.shared.thumbnail(slide:deck.slides[index],deck:deck,size:NSSize(width:640,height:360))
@@ -137,6 +147,7 @@ final class PresenterController: NSObject, NSWindowDelegate {
             if transitionKind == .continuity { frame=AnimationEngine.interpolate(from:from,to:deck.resolved(frame),progress:t) }
             if transitionKind == .wipe { audience.wipeFrom=from; audience.wipeProgress=t; audience.wipeDirection=deck.slides[index].transition.direction ?? .left }
         } else { transitionFrom=nil; audience.wipeFrom=nil }
+        media.layout(slide:frame,deck:deck,rect:audienceRect)
         if audience.playbackSlide != frame || audience.wipeFrom != nil { audience.playbackSlide=frame; audience.needsDisplay=true }
     }
     func updateClock() {
@@ -144,9 +155,9 @@ final class PresenterController: NSObject, NSWindowDelegate {
         elapsedLabel.stringValue=String(format:"%02d:%02d",elapsed/60,elapsed%60)+"   ·   Slide \(index+1) of \(deck.slides.count)   ·   "+DateFormatter.localizedString(from:Date(),dateStyle:.none,timeStyle:.short)+(paused ? "   Paused" : "")
     }
     func scheduleAdvance() { advance?.invalidate(); guard !paused, let interval=deck.slides[index].transition.advanceAfter else { return }; advance=Timer.scheduledTimer(withTimeInterval:max(0.2,interval),repeats:false) { [weak self] _ in self?.next() } }
-    @objc func pause() { paused.toggle(); if paused { pausedAt=Date(); advance?.invalidate() } else { if let at=pausedAt { let interval=Date().timeIntervalSince(at); started=started.addingTimeInterval(interval); animationStarted=animationStarted.addingTimeInterval(interval); transitionStarted=transitionStarted.addingTimeInterval(interval) }; pausedAt=nil; scheduleAdvance() }; updateClock() }
-    @objc func black() { audience.black.toggle(); audience.needsDisplay=true }
-    @objc func end() { clock?.invalidate(); advance?.invalidate(); visualTimer?.invalidate(); audienceWindow?.orderOut(nil); console?.orderOut(nil); NSApp.presentationOptions=[]; audienceWindow=nil; console=nil }
+    @objc func pause() { paused.toggle(); if paused { pausedAt=Date(); advance?.invalidate(); media.pause() } else { media.resume(); if let at=pausedAt { let interval=Date().timeIntervalSince(at); started=started.addingTimeInterval(interval); animationStarted=animationStarted.addingTimeInterval(interval); transitionStarted=transitionStarted.addingTimeInterval(interval) }; pausedAt=nil; scheduleAdvance() }; updateClock() }
+    @objc func black() { audience.black.toggle(); for view in audience.subviews { view.isHidden=audience.black }; audience.needsDisplay=true }
+    @objc func end() { clock?.invalidate(); advance?.invalidate(); visualTimer?.invalidate(); media.stop(); audienceWindow?.orderOut(nil); console?.orderOut(nil); NSApp.presentationOptions=[]; audienceWindow=nil; console=nil }
     func windowWillClose(_ notification: Notification) { end() }
     deinit { clock?.invalidate(); advance?.invalidate(); visualTimer?.invalidate() }
 }

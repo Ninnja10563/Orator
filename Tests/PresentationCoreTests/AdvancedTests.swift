@@ -41,3 +41,18 @@ final class AdvancedTests: XCTestCase {
         XCTAssertEqual(halfway.objects[0].frame.x,slide.objects[0].frame.x+100)
     }
 }
+
+extension AdvancedTests {
+    func testMediaArchiveAndClipboardPreserveOriginalBytes() throws {
+        var deck=Presentation(); let asset=Asset(name:"sample.wav",data:Data("RIFFfixture".utf8))
+        deck.assets[asset.id]=asset; var audio=SlideObject(kind:.audio,name:"Audio",frame:Rect(0,0,200,60)); audio.media=MediaContent(assetID:asset.id)
+        audio.media?.trimStart=1; audio.media?.trimEnd=4; audio.media?.loop=true; deck.slides[0].objects.append(audio)
+        XCTAssertEqual(try PresentationFile.decode(PresentationFile.encode(deck)),deck)
+        XCTAssertEqual(ObjectClipboard(objects:[audio],assets:deck.assets).assets[asset.id]?.data,asset.data)
+        let url=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".pptx"); defer { try? FileManager.default.removeItem(at:url) }
+        _=try PowerPoint.export(deck,to:url)
+        let imported=try PowerPoint.importDeck(from:url)
+        let media=try XCTUnwrap(imported.deck.slides[0].objects.first { $0.kind == .audio }?.media)
+        XCTAssertEqual(imported.deck.assets[media.assetID]?.data,asset.data)
+    }
+}

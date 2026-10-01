@@ -87,6 +87,11 @@ final class SlideRenderer {
                 drawText(table.cells[row][col],style:style,rect:cell.insetBy(dx:12,dy:8),theme:deck.theme)
             } }
         case .chart: if let chart=o.chart { drawChart(chart,object:o,deck:deck) }
+        case .video, .audio:
+            if let poster=o.media?.posterAssetID, let image=image(poster,in:deck) { image.draw(in:r,from:.zero,operation:.sourceOver,fraction:1,respectFlipped:true,hints:nil) }
+            else { RGBA(0.12,0.14,0.18).nsColor.setFill(); r.fill() }
+            NSColor.white.withAlphaComponent(0.85).setFill()
+            let play=NSBezierPath(); play.move(to:NSPoint(x:r.midX-12,y:r.midY-18)); play.line(to:NSPoint(x:r.midX+18,y:r.midY)); play.line(to:NSPoint(x:r.midX-12,y:r.midY+18)); play.close(); play.fill()
         case .group: for child in o.children { draw(object:child,deck:deck,inheritedOpacity:inheritedOpacity*o.opacity) }
         }
     }

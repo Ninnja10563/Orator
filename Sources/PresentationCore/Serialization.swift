@@ -43,6 +43,9 @@ public enum PresentationFile {
                 if let table=o.table {
                     guard !table.cells.isEmpty, table.cells.count <= 1000, let columns=table.cells.first?.count, (1...100).contains(columns), table.cells.allSatisfy({ $0.count == columns }) else { throw FormatError.invalid("invalid table dimensions") }
                 }
+                if let media=o.media {
+                    guard deck.assets[media.assetID] != nil, media.trimStart.isFinite, media.trimStart >= 0, media.trimEnd.map({ $0.isFinite && $0 > media.trimStart }) ?? true, media.volume.isFinite, (0...1).contains(media.volume), media.fadeIn.isFinite, media.fadeOut.isFinite, media.fadeIn >= 0, media.fadeOut >= 0 else { throw FormatError.invalid("invalid media settings") }
+                }
                 if let image=o.image {
                     guard deck.assets[image.assetID] != nil else { throw FormatError.invalid("missing image asset") }
                     let c=image.crop
@@ -70,7 +73,7 @@ public struct ObjectClipboard: Codable {
     public var objects: [SlideObject]; public var assets: [UUID: Asset]
     public init(objects: [SlideObject], assets: [UUID: Asset]) {
         self.objects=objects
-        func assetIDs(_ objects: [SlideObject]) -> [UUID] { objects.flatMap { ($0.image.map { [$0.assetID] } ?? []) + assetIDs($0.children) } }
+        func assetIDs(_ objects: [SlideObject]) -> [UUID] { objects.flatMap { ($0.image.map { [$0.assetID] } ?? []) + ($0.media.map { [$0.assetID]+($0.posterAssetID.map { [$0] } ?? []) } ?? []) + assetIDs($0.children) } }
         let used=Set(assetIDs(objects)); self.assets=assets.filter { used.contains($0.key) }
     }
 }

@@ -37,6 +37,7 @@ public enum PowerPoint {
             let url=root.appendingPathComponent(path); try FileManager.default.createDirectory(at:url.deletingLastPathComponent(),withIntermediateDirectories:true); try Data(content.utf8).write(to:url)
         }
         var overrides="", slideIDs="", presentationRels="", warnings=Set<String>()
+        var mediaTypes: [String:String]=[:]
         func override(_ part: String,_ type: String) { overrides += "<Override PartName=\"/\(part)\" ContentType=\"application/vnd.openxmlformats-officedocument.\(type)+xml\"/>" }
         override("ppt/presentation.xml","presentationml.presentation.main")
         override("ppt/slideMasters/slideMaster1.xml","presentationml.slideMaster")
@@ -72,12 +73,29 @@ public enum PowerPoint {
                     let rows=table.cells.map { row in "<a:tr h=\"\(emu(o.frame.height/Double(table.cells.count)))\">"+row.map { "<a:tc><a:txBody><a:bodyPr/><a:lstStyle/>\(paragraphs($0,style:o.textStyle,theme:deck.theme))</a:txBody><a:tcPr/></a:tc>" }.joined()+"</a:tr>" }.joined()
                     return "<p:graphicFrame><p:nvGraphicFramePr>\(nv)<p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x=\"\(emu(o.frame.x))\" y=\"\(emu(o.frame.y))\"/><a:ext cx=\"\(emu(o.frame.width))\" cy=\"\(emu(o.frame.height))\"/></p:xfrm><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/table\"><a:tbl><a:tblPr firstRow=\"1\" bandRow=\"1\"/><a:tblGrid>\(grid)</a:tblGrid>\(rows)</a:tbl></a:graphicData></a:graphic></p:graphicFrame>"
                 }
+                if let media=o.media, let asset=deck.assets[media.assetID] {
+                    let ext=URL(fileURLWithPath:asset.name).pathExtension.lowercased()
+                    let types=["mp4":"video/mp4","m4v":"video/mp4","mov":"video/quicktime","mp3":"audio/mpeg","m4a":"audio/mp4","wav":"audio/wav","aiff":"audio/aiff","aif":"audio/aiff"]
+                    guard let mime=types[ext] else { throw FormatError.invalid("unsupported PowerPoint media extension: \(ext)") }
+                    mediaTypes[ext]=mime
+                    let filename="media\(n)_\(id).\(ext)", target=root.appendingPathComponent("ppt/media/"+filename)
+                    try FileManager.default.createDirectory(at:target.deletingLastPathComponent(),withIntermediateDirectories:true); try asset.data.write(to:target)
+                    let rid="rIdMedia\(id)", embed="rIdEmbed\(id)", posterID="rIdPoster\(id)"
+                    rels += relationship(rid,o.kind == .video ? "video" : "audio","../media/"+filename)
+                    rels += "<Relationship Id=\"\(embed)\" Type=\"http://schemas.microsoft.com/office/2007/relationships/media\" Target=\"../media/\(xml(filename))\"/>"
+                    let poster=media.posterAssetID.flatMap { deck.assets[$0]?.data } ?? Data(base64Encoded:"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")!
+                    let posterName="poster\(n)_\(id).png"; try poster.write(to:root.appendingPathComponent("ppt/media/"+posterName)); rels += relationship(posterID,"image","../media/"+posterName)
+                    warnings.insert("Audio/video assets are embedded. Orator trim, fade, loop and automatic playback settings are not exported; configure playback in PowerPoint.")
+                    let kind=o.kind == .video ? "videoFile" : "audioFile"
+                    return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(xml(o.name))\"><a:hlinkClick r:id=\"\" action=\"ppaction://media\"/></p:cNvPr><p:cNvPicPr/><p:nvPr><a:\(kind) r:link=\"\(rid)\"/><p:extLst><p:ext uri=\"{DAA4B4D4-6D71-4841-9C94-3DE7FCFB33CC}\"><p14:media xmlns:p14=\"http://schemas.microsoft.com/office/powerpoint/2010/main\" r:embed=\"\(embed)\"/></p:ext></p:extLst></p:nvPr></p:nvPicPr><p:blipFill><a:blip r:embed=\"\(posterID)\"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>\(xfrm(o))<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
+                }
                 if o.kind == .chart { warnings.insert("Charts must be flattened to images before export; an unsupported chart was omitted."); return "" }
                 let shapes: [ShapeKind:String]=[.rectangle:"rect",.roundedRectangle:"roundRect",.ellipse:"ellipse",.triangle:"triangle",.diamond:"diamond",.star:"star5",.line:"line",.arrow:"rightArrow"]
                 let style=o.kind == .text ? "<a:noFill/><a:ln><a:noFill/></a:ln>" : solid(o.style.fill ?? deck.theme.accent)+"<a:ln w=\"\(emu(o.style.strokeWidth))\">\(solid(o.style.stroke))</a:ln>"
                 return "<p:sp><p:nvSpPr>\(nv)<p:cNvSpPr txBox=\"\(o.kind == .text ? 1 : 0)\"/><p:nvPr/></p:nvSpPr><p:spPr>\(xfrm(o))<a:prstGeom prst=\"\(shapes[o.shape] ?? "rect")\"><a:avLst/></a:prstGeom>\(style)</p:spPr><p:txBody><a:bodyPr wrap=\"square\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\"/><a:lstStyle/>\(paragraphs(o.text,style:o.textStyle,theme:deck.theme))</p:txBody></p:sp>"
             }
             for object in slide.objects { body += try objectXML(object) }
+            if !(slide.animations ?? []).isEmpty { warnings.insert("Object animations are not exported to PowerPoint yet.") }
             var transition=""
             if slide.transition.kind != .none { transition="<p:transition spd=\"med\">"+(slide.transition.kind == .fade ? "<p:fade/>" : "<p:push dir=\"l\"/>")+"</p:transition>" }
             try write("ppt/slides/slide\(n).xml","<?xml version=\"1.0\" encoding=\"UTF-8\"?><p:sld xmlns:a=\"\(a)\" xmlns:r=\"\(r)\" xmlns:p=\"\(p)\" show=\"\(slide.skipped ? 0 : 1)\"><p:cSld name=\"\(xml(slide.title))\"><p:bg><p:bgPr>\(solid(slide.background ?? deck.theme.background))<a:effectLst/></p:bgPr></p:bg><p:spTree>\(groupHeader)\(body)</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>\(transition)</p:sld>")
@@ -106,7 +124,7 @@ public enum PowerPoint {
         let fills=String(repeating:ph,count:3), lines=String(repeating:"<a:ln w=\"9525\" cap=\"flat\" cmpd=\"sng\" algn=\"ctr\">\(ph)<a:prstDash val=\"solid\"/><a:miter lim=\"800000\"/></a:ln>",count:3)
         try write("ppt/theme/theme1.xml","<a:theme xmlns:a=\"\(a)\" name=\"Orator\"><a:themeElements><a:clrScheme name=\"\(xml(deck.theme.name))\">\(scheme)</a:clrScheme><a:fontScheme name=\"Orator\"><a:majorFont>\(fonts)</a:majorFont><a:minorFont>\(fonts)</a:minorFont></a:fontScheme><a:fmtScheme name=\"Orator\"><a:fillStyleLst>\(fills)</a:fillStyleLst><a:lnStyleLst>\(lines)</a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst>\(fills)</a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>")
         try write("_rels/.rels",relationships(relationship("rId1","officeDocument","ppt/presentation.xml")))
-        try write("[Content_Types].xml","<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Default Extension=\"png\" ContentType=\"image/png\"/><Default Extension=\"jpg\" ContentType=\"image/jpeg\"/><Default Extension=\"tiff\" ContentType=\"image/tiff\"/>\(overrides)</Types>")
+        try write("[Content_Types].xml","<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Default Extension=\"png\" ContentType=\"image/png\"/><Default Extension=\"jpg\" ContentType=\"image/jpeg\"/><Default Extension=\"tiff\" ContentType=\"image/tiff\"/>\(mediaTypes.sorted { $0.key < $1.key }.map { "<Default Extension=\"\(xml($0.key))\" ContentType=\"\(xml($0.value))\"/>" }.joined())\(overrides)</Types>")
         let archive=root.deletingLastPathComponent().appendingPathComponent(UUID().uuidString+".pptx")
         defer { try? FileManager.default.removeItem(at:archive) }
         _ = try run("/usr/bin/zip",["-q","-r",archive.path,"."],directory:root)
@@ -199,6 +217,11 @@ public enum PowerPoint {
                     let asset=Asset(name:URL(fileURLWithPath:target).lastPathComponent,data:try read(target)); deck.assets[asset.id]=asset; object.kind = .image; object.image=ImageContent(assetID:asset.id)
                     if let crop=node.first("srcRect") { let l=crop.number("l")/100000,t=crop.number("t")/100000; object.image?.crop=Rect(l,t,1-l-crop.number("r")/100000,1-t-crop.number("b")/100000) }
                     object.image?.fill=true; object.image?.flippedHorizontally=transform?.attr("flipH") == "1"
+                    if let reference=node.first("videoFile") ?? node.first("audioFile"), let target=links[reference.attr("r:link")] {
+                        let mediaAsset=Asset(name:URL(fileURLWithPath:target).lastPathComponent,data:try read(target)); deck.assets[mediaAsset.id]=mediaAsset
+                        object.kind=reference.localName == "videoFile" ? .video : .audio
+                        object.media=MediaContent(assetID:mediaAsset.id); object.media?.posterAssetID=asset.id; object.image=nil
+                    }
                 }
                 if node.localName == "graphicFrame" {
                     guard let table=node.first("tbl") else { warnings.insert("A chart or unsupported graphic was omitted."); continue }

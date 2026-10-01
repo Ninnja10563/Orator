@@ -98,6 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item(view,"Enter Full Screen",#selector(NSWindow.toggleFullScreen(_:)),"f",[.command,.control])
         let insert=menu("Insert")
         for (title,selector) in [("Text",#selector(EditorWindowController.addText(_:))),("Shape",#selector(EditorWindowController.insertShape(_:))),("Image…",#selector(EditorWindowController.insertImage(_:))),("Table",#selector(EditorWindowController.insertTable(_:))),("Chart",#selector(EditorWindowController.insertChart(_:)))] { item(insert,title,selector) }
+        item(insert,"Video / Audio…",#selector(EditorWindowController.insertMedia(_:)))
         let slide=menu("Slide"); item(slide,"Add Slide…",#selector(EditorWindowController.addSlide(_:)),"n",[.command,.shift]); item(slide,"Duplicate Slides",#selector(EditorWindowController.duplicateSlides(_:))); item(slide,"Delete Slides",#selector(EditorWindowController.deleteSlides(_:))); item(slide,"Skip / Include Slide",#selector(EditorWindowController.skipSlide(_:)))
         item(slide,"Copy Slides",#selector(EditorWindowController.copySlides(_:)))
         item(slide,"Paste Slides",#selector(EditorWindowController.pasteSlides(_:)))

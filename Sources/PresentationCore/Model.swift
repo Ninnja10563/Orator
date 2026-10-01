@@ -27,7 +27,7 @@ public struct RGBA: Codable, Equatable, Sendable {
 public enum ShapeKind: String, Codable, CaseIterable, Sendable {
     case rectangle, roundedRectangle, ellipse, triangle, diamond, star, line, arrow
 }
-public enum ObjectKind: String, Codable, Sendable { case text, shape, image, table, chart, group }
+public enum ObjectKind: String, Codable, Sendable { case text, shape, image, table, chart, group, video, audio }
 public enum TextAlignment: String, Codable, CaseIterable, Sendable { case left, center, right, justified }
 public enum TextFit: String, Codable, CaseIterable, Sendable { case fixed, shrink, expand, clip }
 public struct TextStyle: Codable, Equatable, Sendable {
@@ -89,6 +89,7 @@ public struct SlideObject: Codable, Equatable, Identifiable, Sendable {
     public var animationClip: Rect? = nil
     public var shape: ShapeKind = .rectangle
     public var image: ImageContent? = nil
+    public var media: MediaContent? = nil
     public var table: TableContent? = nil
     public var chart: ChartContent? = nil
     /// Children use slide coordinates; transforms are applied recursively as one edit.

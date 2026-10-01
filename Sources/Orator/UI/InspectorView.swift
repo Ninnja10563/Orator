@@ -54,6 +54,8 @@ final class InspectorView: SurfaceView {
         button("Crop Image…",#selector(cropImage))
         button("Reset Image Crop",#selector(resetCrop))
         button("Reset Theme Colors",#selector(resetColors))
+        button("Playback Settings…",#selector(playbackSettings))
+        button("Preview Media",#selector(previewMedia))
 
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -75,13 +77,14 @@ final class InspectorView: SurfaceView {
             case "SLIDE","PRESENTATION": visible=object == nil
             case "ARRANGE": visible=object != nil
             case "STYLE": visible=object.map { [.text,.shape,.table].contains($0.kind) } ?? false
-            case "CONTENT": visible=object.map { [.image,.chart,.table].contains($0.kind) } ?? false
+            case "CONTENT": visible=object.map { [.image,.chart,.table,.video,.audio].contains($0.kind) } ?? false
             default: visible=true
             }
             for view in views { view.isHidden = !visible }
         }
         for title in ["Show / Hide Selection","Bring to Front","Send to Back","Lock / Unlock Selection"] { (labeledViews[title] as? NSControl)?.isEnabled=object != nil }
         if let o=object {
+            for title in ["Playback Settings…","Preview Media"] { labeledViews[title]?.isHidden = ![.video,.audio].contains(o.kind) }
             labeledViews["Chart type"]?.isHidden=o.kind != .chart
             labeledViews["Edit table / chart data…"]?.isHidden = ![.chart,.table].contains(o.kind)
             for title in ["Image: Fit / Fill","Flip Image Horizontally","Crop Image…","Reset Image Crop"] { labeledViews[title]?.isHidden=o.kind != .image }
@@ -166,6 +169,8 @@ final class InspectorView: SurfaceView {
         }
     }
     @objc func resetColors() { editor?.mutateSelection("Reset Theme Colors") { $0.style.fill=nil; $0.textStyle.color=nil } }
+    @objc func playbackSettings() { editor?.mediaSettings(nil) }
+    @objc func previewMedia() { editor?.previewMedia(nil) }
     @objc func highlightText() { editor?.formatText("Highlight Text") { $0.highlight = $0.highlight == nil ? RGBA(1,0.9,0.3) : nil } }
     @objc func strikeText() { editor?.formatText("Strikethrough") { $0.strikethrough = !($0.strikethrough ?? false) } }
     @objc func paragraphSettings() { editor?.showParagraphSettings(nil) }
