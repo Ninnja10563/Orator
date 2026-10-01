@@ -16,6 +16,21 @@ public struct CellMerge: Codable, Equatable, Sendable {
     public func contains(row: Int,column: Int) -> Bool { self.row >= 0 && self.column >= 0 && row >= self.row && column >= self.column && row-self.row < rows && column-self.column < columns }
 }
 public extension TableContent {
+    mutating func setText(_ text: String,row: Int,column: Int,runs: [TextRun]? = nil) {
+        guard cells.indices.contains(row), cells[row].indices.contains(column) else { return }
+        cells[row][column]=text
+        if richText == nil && runs != nil { richText=[:] }; richText?["\(row):\(column)"]=runs
+    }
+    func textObject(row: Int,column: Int,object: SlideObject,theme: Theme) -> SlideObject {
+        let cell=styles?["\(row):\(column)"] ?? CellStyle()
+        var text=object; text.text=cells[row][column]; text.textRuns=richText?["\(row):\(column)"]; text.textStyle=cell.textStyle ?? object.textStyle
+        if cell.textStyle == nil {
+            text.textStyle.size=min(text.textStyle.size,24); text.textStyle.bold=row == 0
+            if row == 0 { let c=theme.accent; text.textStyle.color=c.red*0.2126+c.green*0.7152+c.blue*0.0722 > 0.6 ? .ink : .white }
+        }
+        let frame=cellFrame(row:row,column:column,in:object.frame)
+        text.frame=Rect(frame.x+cell.padding,frame.y+cell.padding,max(1,frame.width-2*cell.padding),max(1,frame.height-2*cell.padding)); return text
+    }
     func cellFrame(row: Int,column: Int,in frame: Rect) -> Rect {
         let rows=cells.count, columns=cells.first?.count ?? 0
         guard row >= 0, column >= 0, row < rows, column < columns else { return Rect(frame.x,frame.y,1,1) }
@@ -55,14 +70,17 @@ public extension TableContent {
         for r in cells.indices { cells[r].remove(at:index) }; columnWidths?.remove(at:index); remapCells(row:nil,delta:-1,column:index)
     }
     private mutating func remapCells(row: Int?,delta: Int,column: Int?) {
-        var result: [String:CellStyle]=[:]
-        for (key,value) in styles ?? [:] {
-            let parts=key.split(separator:":").compactMap { Int($0) }; guard parts.count == 2 else { continue }
-            var r=parts[0], c=parts[1]
-            if let index=row { if delta < 0 && r == index { continue }; if r >= index { r += delta } }
-            if let index=column { if delta < 0 && c == index { continue }; if c >= index { c += delta } }
-            result["\(r):\(c)"]=value
-        }; styles=result
+        func remap<Value>(_ input: [String:Value]?) -> [String:Value]? {
+            guard let input else { return nil }; var result: [String:Value]=[:]
+            for (key,value) in input {
+                let parts=key.split(separator:":").compactMap { Int($0) }; guard parts.count == 2 else { continue }
+                var r=parts[0], c=parts[1]
+                if let index=row { if delta < 0 && r == index { continue }; if r >= index { r += delta } }
+                if let index=column { if delta < 0 && c == index { continue }; if c >= index { c += delta } }
+                result["\(r):\(c)"]=value
+            }; return result
+        }
+        styles=remap(styles); richText=remap(richText)
         // Preserve merges outside the edited range; split merges intersected by a deletion.
         merges=merges?.compactMap { original in
             var merge=original

@@ -56,6 +56,11 @@ public enum PresentationFile {
                         guard coordinates.count == 2, table.cells.indices.contains(coordinates[0]), (0..<columns).contains(coordinates[1]), style.padding.isFinite, (0...10000).contains(style.padding), style.borderWidth.isFinite, (0...10000).contains(style.borderWidth), style.fill.map(validColor) ?? true, style.border.map(validColor) ?? true else { throw FormatError.invalid("invalid table cell style") }
                         if let text=style.textStyle { try RichText.validateStyle(text) }
                     }
+                    for (key,runs) in table.richText ?? [:] {
+                        let coordinates=key.split(separator:":").compactMap { Int($0) }
+                        guard coordinates.count == 2, table.cells.indices.contains(coordinates[0]), (0..<columns).contains(coordinates[1]) else { throw FormatError.invalid("invalid rich table cell") }
+                        try RichText.validate(runs,text:table.cells[coordinates[0]][coordinates[1]])
+                    }
                     var checked=TableContent(rows:table.cells.count,columns:columns)
                     for merge in table.merges ?? [] { try checked.merge(merge) }
                 }

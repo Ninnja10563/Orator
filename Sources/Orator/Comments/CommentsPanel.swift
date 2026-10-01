@@ -42,7 +42,7 @@ final class CommentsPanel: NSWindowController, NSTableViewDataSource, NSTableVie
         guard alert.runModal() == .alertFirstButtonReturn else { return nil }; let value=text.string.trimmingCharacters(in:.whitespacesAndNewlines); return value.isEmpty ? nil : value
     }
     @objc func add() { guard let text=input("Add Comment") else { return }; change("Add Comment") { $0.comments.append(Comment(text:text,author:NSFullUserName(),objectID:objectID)) }; table.selectRowIndexes(IndexSet(integer:max(0,comments.count-1)),byExtendingSelection:false) }
-    @objc func reply() { guard let i=selection, let text=input("Reply") else { return }; let id=comments[i].id; change("Reply to Comment") { slide in if let index=slide.comments.firstIndex(where: { $0.id == id }) { slide.comments[index].replies.append(NSFullUserName()+": "+text) } } }
+    @objc func reply() { guard let i=selection, let text=input("Reply") else { return }; let id=comments[i].id; change("Reply to Comment") { slide in if let index=slide.comments.firstIndex(where: { $0.id == id }) { slide.comments[index].addReply(text,author:NSFullUserName()) } } }
     @objc func resolve() { guard let i=selection else { return }; change(comments[i].resolved ? "Reopen Comment" : "Resolve Comment") { $0.comments[i].resolved.toggle() } }
     @objc func delete() { guard let i=selection else { return }; change("Delete Comment") { $0.comments.remove(at:i) } }
 }

@@ -254,4 +254,15 @@ extension AdvancedTests {
         XCTAssertEqual(slide.comments[0].messages.first?.author,"Sam"); XCTAssertEqual(slide.comments[0].messages.first?.text,"Updated")
         XCTAssertTrue(slide.comments[0].resolved); XCTAssertEqual(slide.comments[0].objectID,slide.objects[0].id)
     }
+    func testRichTableTextSurvivesStructureChangesAndOfficeExchange() throws {
+        var table=TableContent(), style=TextStyle(); style.bold=true; style.color=RGBA(1,0,0)
+        table.setText("Rich cell",row:1,column:1,runs:[TextRun(location:0,length:4,style:style)])
+        table.insertRow(at:0); table.insertColumn(at:0)
+        XCTAssertEqual(table.richText?["2:2"]?.first?.length,4)
+        var deck=Presentation(), object=SlideObject(kind:.table,name:"Table",frame:Rect(100,100,800,400)); object.table=table; deck.slides[0].objects=[object]
+        let url=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".pptx"); defer { try? FileManager.default.removeItem(at:url) }
+        _=try PowerPoint.export(deck,to:url); let imported=try PowerPoint.importDeck(from:url).deck.slides[0].objects[0].table!
+        XCTAssertEqual(imported.cells[2][2],"Rich cell"); XCTAssertTrue(imported.richText?["2:2"]?.first?.style.bold == true)
+        table.setText("Replaced",row:2,column:2); XCTAssertNil(table.richText?["2:2"])
+    }
 }

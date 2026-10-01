@@ -25,20 +25,20 @@ extension PowerPoint {
                 let border=cell.border ?? theme.foreground.withAlpha(0.18)
                 let edges=["lnL","lnR","lnT","lnB"].map { "<a:\($0) w=\"\(emu(cell.borderWidth))\">\(solid(border))<a:prstDash val=\"solid\"/></a:\($0)>" }.joined()
                 let anchor=cell.vertical == .top ? "t" : cell.vertical == .middle ? "ctr" : "b"
-                body += "<a:tc\(attrs)><a:txBody><a:bodyPr/><a:lstStyle/>\(paragraphs(table.cells[r][c],style:textStyle,theme:theme))</a:txBody><a:tcPr marL=\"\(emu(cell.padding))\" marR=\"\(emu(cell.padding))\" marT=\"\(emu(cell.padding))\" marB=\"\(emu(cell.padding))\" anchor=\"\(anchor)\">\(edges)\(solid(fill))</a:tcPr></a:tc>"
+                body += "<a:tc\(attrs)><a:txBody><a:bodyPr/><a:lstStyle/>\(paragraphs(table.cells[r][c],style:textStyle,theme:theme,runs:table.richText?["\(r):\(c)"]))</a:txBody><a:tcPr marL=\"\(emu(cell.padding))\" marR=\"\(emu(cell.padding))\" marT=\"\(emu(cell.padding))\" marB=\"\(emu(cell.padding))\" anchor=\"\(anchor)\">\(edges)\(solid(fill))</a:tcPr></a:tc>"
             }; body += "</a:tr>"
         }
         return "<a:tbl><a:tblPr firstRow=\"1\" bandRow=\"1\"/><a:tblGrid>\(grid)</a:tblGrid>\(body)</a:tbl>"
     }
     static func readTable(_ node: XMLElement,style: TextStyle,links: [String:String]) throws -> TableContent {
-        let rows=node.descendants("tr"); var table=TableContent(); table.cells=[]; table.styles=[:]
+        let rows=node.descendants("tr"); var table=TableContent(); table.cells=[]; table.styles=[:]; table.richText=[:]
         table.rowHeights=rows.map { max(0.001,$0.number("h")/9525) }; table.columnWidths=node.descendants("gridCol").map { max(0.001,$0.number("w")/9525) }
         var merges: [CellMerge]=[]
         for (r,row) in rows.enumerated() {
             var values: [String]=[]
             for (c,cell) in row.descendants("tc").enumerated() {
                 let imported=cell.direct("txBody").map { readText($0,defaultStyle:style,links:links) }
-                values.append(imported?.0 ?? "")
+                values.append(imported?.0 ?? ""); table.richText?["\(r):\(c)"]=imported?.1
                 var settings=CellStyle(); settings.textStyle=imported?.1.first?.style
                 if let props=cell.direct("tcPr") {
                     settings.padding=props.number("marL",default:95250)/9525

@@ -100,14 +100,13 @@ final class SlideRenderer {
                 let cellStyle=table.styles?["\(row):\(col)"] ?? CellStyle()
                 (cellStyle.fill ?? (row == 0 ? deck.theme.accent : deck.theme.background)).nsColor.setFill(); cell.fill()
                 (cellStyle.border?.nsColor ?? deck.theme.foreground.nsColor.withAlphaComponent(0.18)).setStroke(); let p=NSBezierPath(rect:cell); p.lineWidth=cellStyle.borderWidth; p.stroke()
-                var style=cellStyle.textStyle ?? o.textStyle
-                if cellStyle.textStyle == nil { style.size=min(style.size,24); style.bold=row == 0; if row == 0 { let c=deck.theme.accent; style.color=c.red*0.2126+c.green*0.7152+c.blue*0.0722 > 0.6 ? .ink : .white } }
-                var textRect=cell.insetBy(dx:cellStyle.padding,dy:cellStyle.padding)
+                let text=table.textObject(row:row,column:col,object:o,theme:deck.theme)
+                var textRect=text.frame.nsRect
                 if cellStyle.vertical != .top {
-                    let height=(table.cells[row][col] as NSString).boundingRect(with:textRect.size,options:[.usesLineFragmentOrigin,.usesFontLeading],attributes:style.attributes(theme:deck.theme)).height
+                    let height=NativeText.measuredSize(NativeText.attributed(text,theme:deck.theme),width:textRect.width).height
                     textRect.origin.y += max(0,textRect.height-height)*(cellStyle.vertical == .middle ? 0.5 : 1)
                 }
-                drawText(table.cells[row][col],style:style,rect:textRect,theme:deck.theme)
+                drawRichText(text,rect:textRect,theme:deck.theme)
             } }
         case .chart: if let chart=o.chart { drawChart(chart,object:o,deck:deck) }
         case .video, .audio:

@@ -281,8 +281,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
             let anchor=table.anchor(row:row,column:column)
             let frame=table.cellFrame(row:anchor.0,column:anchor.1,in:object.frame)
             if frame.contains(point) {
-                var text=object; text.text=table.cells[anchor.0][anchor.1]; text.textRuns=nil
-                text.frame=Rect(frame.x+10,frame.y+10,max(1,frame.width-20),max(1,frame.height-20)); text.textStyle=table.styles?["\(anchor.0):\(anchor.1)"]?.textStyle ?? object.textStyle; text.textStyle.size=min(24,text.textStyle.size)
+                let text=table.textObject(row:anchor.0,column:anchor.1,object:object,theme:deck.theme)
                 beginText(text); editingCell=anchor; return
             }
         } }
@@ -323,7 +322,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
     }
     var pendingTextSlide: Slide? {
         guard let view=textEditor, let id=editingID, var changed=editor?.currentSlide, let i=changed.objects.firstIndex(where: { $0.id == id }) else { return nil }
-        if let (r,c)=editingCell { changed.objects[i].table?.cells[r][c]=view.string }
+        if let (r,c)=editingCell { var cell=changed.objects[i]; NativeText.store(view.attributedString(),in:&cell); changed.objects[i].table?.setText(cell.text,row:r,column:c,runs:cell.textRuns) }
             else { NativeText.store(view.attributedString(),in:&changed.objects[i]) }
         if changed.objects[i].name == "Title" { changed.title=String(view.string.prefix(120)) }
         return changed
@@ -337,7 +336,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
         guard let view=textEditor, let id=editingID else { return }
         var changed=editor?.currentSlide ?? Slide()
         if let i=changed.objects.firstIndex(where: { $0.id == id }) {
-            if let (r,c)=editingCell { changed.objects[i].table?.cells[r][c]=view.string }
+            if let (r,c)=editingCell { var cell=changed.objects[i]; NativeText.store(view.attributedString(),in:&cell); changed.objects[i].table?.setText(cell.text,row:r,column:c,runs:cell.textRuns) }
             else { NativeText.store(view.attributedString(),in:&changed.objects[i]) }
             if changed.objects[i].name == "Title" { changed.title=String(view.string.prefix(120)) }
             if editingCell == nil && changed.objects[i].textStyle.fit == .expand {

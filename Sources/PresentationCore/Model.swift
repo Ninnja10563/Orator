@@ -73,6 +73,7 @@ public struct TableContent: Codable, Equatable, Sendable {
     public var columnWidths: [Double]? = nil
     public var merges: [CellMerge]? = nil
     public var styles: [String:CellStyle]? = nil
+    public var richText: [String:[TextRun]]? = nil
     public init(rows: Int = 3, columns: Int = 3) { cells = (0..<rows).map { r in (0..<columns).map { c in r == 0 ? "Column \(c+1)" : "" } } }
 }
 public enum ChartKind: String, Codable, CaseIterable, Sendable { case bar, column, line, pie, area, scatter }
