@@ -67,6 +67,13 @@ func checkAdvancedEditing(_ editor: EditorWindowController) throws {
     let notesPDF=try PDFExporter.data(notesDeck,includeNotes:true)
     guard let pdf=PDFDocument(data:notesPDF), pdf.pageCount > 1, pdf.string?.contains("FINAL NOTES MARKER") == true else { fatalError("Speaker notes PDF pagination lost text") }
     _=try document.printOperation(withSettings:[:])
+    if let output=ProcessInfo.processInfo.environment["ORATOR_SMOKE_OUTPUT"] {
+        var list=SlideObject(kind:.text,name:"Numbered list",frame:Rect(40,40,560,240)); list.text="First item\nSecond item\nThird item"; list.textStyle.size=32
+        var paragraph=ParagraphSettings(); paragraph.list = .numbered; list.textStyle.paragraph=paragraph
+        var slide=Slide(); slide.objects=[list]; var deck=Presentation(); deck.width=640; deck.height=320; deck.slides=[slide]
+        let image=SlideRenderer.shared.thumbnail(slide:slide,deck:deck,size:NSSize(width:640,height:320))
+        if let data=image.tiffRepresentation, let bitmap=NSBitmapImageRep(data:data) { try bitmap.representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:output).deletingLastPathComponent().appendingPathComponent("list-rendering.png")) }
+    }
     try checkMediaPlayback()
     document.deck=original; document.undoManager?.removeAllActions(); editor.editingMasterID=nil; editor.editingLayoutID=nil; editor.editingGroupIDs=[]; editor.selectedSlideID=original.slides[0].id; editor.canvas.selected=[]; editor.refresh(); editor.window?.makeKeyAndOrderFront(nil)
     print("Advanced AppKit checks: table cells/undo, chart series, crop geometry, master layouts, and AVFoundation playback passed")

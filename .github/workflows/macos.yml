@@ -46,3 +46,4 @@ jobs:
             build/table-editor.png
             build/chart-editor.png
             build/crop-editor.png
+            build/list-rendering.png
