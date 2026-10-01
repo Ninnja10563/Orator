@@ -85,7 +85,14 @@ public struct ObjectClipboard: Codable {
     public var objects: [SlideObject]; public var assets: [UUID: Asset]
     public init(objects: [SlideObject], assets: [UUID: Asset]) {
         self.objects=objects
-        func assetIDs(_ objects: [SlideObject]) -> [UUID] { objects.flatMap { ($0.image.map { [$0.assetID]+($0.originalAssetID.map { [$0] } ?? []) } ?? []) + ($0.media.map { [$0.assetID]+($0.posterAssetID.map { [$0] } ?? []) } ?? []) + assetIDs($0.children) } }
+        func assetIDs(_ objects: [SlideObject]) -> [UUID] {
+            var result: [UUID]=[]
+            for object in objects {
+                if let image=object.image { result.append(image.assetID); if let original=image.originalAssetID { result.append(original) } }
+                if let media=object.media { result.append(media.assetID); if let poster=media.posterAssetID { result.append(poster) } }
+                result += assetIDs(object.children)
+            }; return result
+        }
         let used=Set(assetIDs(objects)); self.assets=assets.filter { used.contains($0.key) }
     }
 }
