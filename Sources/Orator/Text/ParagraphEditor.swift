@@ -12,7 +12,7 @@ extension EditorWindowController {
             let field=NSTextField(string:String(value)); field.widthAnchor.constraint(equalToConstant:100).isActive=true; fields[title]=field
             stack.addArrangedSubview(NSStackView(views:[NSTextField(labelWithString:title),field]))
         }
-        let list=NSPopUpButton(); list.addItems(withTitles:ListKind.allCases.map(\.rawValue)); list.selectItem(withTitle:p.list.rawValue); stack.addArrangedSubview(list)
+        let list=NSPopUpButton(); list.addItems(withTitles:ListKind.allCases.map(\.displayName)); list.selectItem(withTitle:p.list.displayName); stack.addArrangedSubview(list)
         alert.accessoryView=stack; alert.addButton(withTitle:"Apply"); alert.addButton(withTitle:"Cancel")
         alert.beginSheetModal(for:window!) { [weak self] response in
             guard response == .alertFirstButtonReturn, let self=self else { return }

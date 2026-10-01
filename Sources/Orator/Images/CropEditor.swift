@@ -52,7 +52,7 @@ final class CropEditor: NSWindowController {
         let root=SurfaceStackView(); root.orientation = .vertical; root.spacing=12; root.edgeInsets=NSEdgeInsets(top:12,left:16,bottom:16,right:16); root.frame=window.contentView!.bounds; root.autoresizingMask=[.width,.height]; window.contentView=root
         root.addArrangedSubview(preview); preview.widthAnchor.constraint(equalTo:root.widthAnchor,constant:-32).isActive=true; preview.heightAnchor.constraint(greaterThanOrEqualToConstant:380).isActive=true
         aspect.addItems(withTitles:["Free","Square","4:3","16:9","3:4","9:16"]); aspect.target=self; aspect.action=#selector(changeAspect)
-        mask.addItems(withTitles:ImageMask.allCases.map(\.rawValue)); mask.selectItem(withTitle:(content.mask ?? .rectangle).rawValue)
+        mask.addItems(withTitles:ImageMask.allCases.map(\.displayName)); mask.selectItem(withTitle:(content.mask ?? .rectangle).displayName)
         let row=NSStackView(views:[NSTextField(labelWithString:"Aspect"),aspect,NSTextField(labelWithString:"Mask"),mask,NSButton(title:"Reset",target:self,action:#selector(reset)),NSButton(title:"Cancel",target:self,action:#selector(cancel)),NSButton(title:"Apply Crop",target:self,action:#selector(save))]); root.addArrangedSubview(row)
         let help=NSTextField(labelWithString:"Drag the crop corners or move the crop area. Original image quality is retained."); help.font = .systemFont(ofSize:11); help.textColor = .secondaryLabelColor; root.addArrangedSubview(help)
     }

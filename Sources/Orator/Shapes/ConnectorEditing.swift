@@ -25,11 +25,11 @@ extension EditorWindowController {
         let targets=currentSlide.objects.filter { $0.id != object.id && $0.connector == nil }
         let alert=NSAlert(); alert.messageText="Connector"; let stack=NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing=12; stack.frame=NSRect(x:0,y:0,width:460,height:140)
         let kind=NSPopUpButton(), start=NSPopUpButton(), end=NSPopUpButton(), startAnchor=NSPopUpButton(), endAnchor=NSPopUpButton()
-        kind.addItems(withTitles:ConnectorKind.allCases.map(\.rawValue)); kind.selectItem(withTitle:connector.kind.rawValue)
+        kind.addItems(withTitles:ConnectorKind.allCases.map(\.displayName)); kind.selectItem(withTitle:connector.kind.displayName)
         for popup in [start,end] { popup.addItems(withTitles:["Free endpoint"]+targets.map(\.name)) }
-        for popup in [startAnchor,endAnchor] { popup.addItems(withTitles:ConnectionAnchor.allCases.map(\.rawValue)) }
+        for popup in [startAnchor,endAnchor] { popup.addItems(withTitles:ConnectionAnchor.allCases.map(\.displayName)) }
         start.selectItem(at:targets.firstIndex(where: { $0.id == connector.start.objectID }).map { $0+1 } ?? 0); end.selectItem(at:targets.firstIndex(where: { $0.id == connector.end.objectID }).map { $0+1 } ?? 0)
-        startAnchor.selectItem(withTitle:connector.start.anchor.rawValue); endAnchor.selectItem(withTitle:connector.end.anchor.rawValue)
+        startAnchor.selectItem(withTitle:connector.start.anchor.displayName); endAnchor.selectItem(withTitle:connector.end.anchor.displayName)
         let arrow=NSButton(checkboxWithTitle:"Arrowhead",target:nil,action:nil); arrow.state=connector.arrow ? .on : .off
         let rows: [[NSView]]=[[NSTextField(labelWithString:"Path"),kind,arrow],[NSTextField(labelWithString:"Start"),start,startAnchor],[NSTextField(labelWithString:"End"),end,endAnchor]]
         for views in rows { stack.addArrangedSubview(NSStackView(views:views)) }

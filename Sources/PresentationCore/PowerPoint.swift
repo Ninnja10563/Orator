@@ -60,7 +60,7 @@ public enum PowerPoint {
                     let arrow=connector.arrow ? "<a:tailEnd type=\"triangle\" w=\"med\" len=\"med\"/>" : ""
                     return "<p:cxnSp><p:nvCxnSpPr>\(nv)<p:cNvCxnSpPr>\(connection("stCxn",connector.start))\(connection("endCxn",connector.end))</p:cNvCxnSpPr><p:nvPr/></p:nvCxnSpPr><p:spPr>\(transform)<a:prstGeom prst=\"\(geometry)\"><a:avLst/></a:prstGeom><a:ln w=\"\(emu(max(1,o.style.strokeWidth)))\">\(solid(o.style.stroke))\(arrow)</a:ln></p:spPr></p:cxnSp>"
                 }
-                if o.opacity < 1 { warnings.insert("Object-level opacity is not retained in PowerPoint export.") }
+                if o.opacity < 1 && [.chart,.table,.video,.audio].contains(o.kind) { warnings.insert("Table, chart and media object opacity is not retained in PowerPoint export.") }
                 if o.kind == .image, let image=o.image, let asset=deck.assets[image.assetID] {
                     let ext: String
                     if asset.data.starts(with:[0x89,0x50,0x4e,0x47]) { ext="png" }
@@ -72,7 +72,7 @@ public enum PowerPoint {
                     let rid="rIdImage\(id)"; rels += relationship(rid,"image","../media/\(filename)")
                     let c=image.crop
                     let imageTransform=xfrm(o).replacingOccurrences(of:"<a:xfrm ",with:"<a:xfrm flipH=\"\(image.flippedHorizontally ? 1 : 0)\" flipV=\"\(image.flippedVertically == true ? 1 : 0)\" ")
-                    return "<p:pic><p:nvPicPr>\(nv)<p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed=\"\(rid)\"/><a:srcRect l=\"\(Int(c.x*100000))\" t=\"\(Int(c.y*100000))\" r=\"\(Int((1-c.maxX)*100000))\" b=\"\(Int((1-c.maxY)*100000))\"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>\(imageTransform)<a:prstGeom prst=\"\(image.mask == .ellipse ? "ellipse" : image.mask == .roundedRectangle ? "roundRect" : "rect")\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
+                    return "<p:pic><p:nvPicPr>\(nv)<p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed=\"\(rid)\"><a:alphaModFix amt=\"\(Int(o.opacity*100000))\"/></a:blip><a:srcRect l=\"\(Int(c.x*100000))\" t=\"\(Int(c.y*100000))\" r=\"\(Int((1-c.maxX)*100000))\" b=\"\(Int((1-c.maxY)*100000))\"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>\(imageTransform)<a:prstGeom prst=\"\(image.mask == .ellipse ? "ellipse" : image.mask == .roundedRectangle ? "roundRect" : "rect")\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
                 }
                 if o.kind == .table, let table=o.table, let columns=table.cells.first?.count, columns > 0 {
                     return "<p:graphicFrame><p:nvGraphicFramePr>\(nv)<p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x=\"\(emu(o.frame.x))\" y=\"\(emu(o.frame.y))\"/><a:ext cx=\"\(emu(o.frame.width))\" cy=\"\(emu(o.frame.height))\"/></p:xfrm><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/table\">\(tableXML(table,object:o,theme:deck.theme))</a:graphicData></a:graphic></p:graphicFrame>"
@@ -101,9 +101,9 @@ public enum PowerPoint {
                     rels += relationship(rid,"chart","../charts/\(name).xml")
                     return "<p:graphicFrame><p:nvGraphicFramePr>\(nv)<p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x=\"\(emu(o.frame.x))\" y=\"\(emu(o.frame.y))\"/><a:ext cx=\"\(emu(o.frame.width))\" cy=\"\(emu(o.frame.height))\"/></p:xfrm><a:graphic><a:graphicData uri=\"\(chartNS)\"><c:chart xmlns:c=\"\(chartNS)\" r:id=\"\(rid)\"/></a:graphicData></a:graphic></p:graphicFrame>"
                 }
-                let shapes: [ShapeKind:String]=[.rectangle:"rect",.roundedRectangle:"roundRect",.ellipse:"ellipse",.circle:"ellipse",.polygon:"hexagon",.doubleArrow:"leftRightArrow",.speechBubble:"wedgeRoundRectCallout",.triangle:"triangle",.diamond:"diamond",.star:"star5",.line:"line",.arrow:"rightArrow"]
-                let style=o.kind == .text ? "<a:noFill/><a:ln><a:noFill/></a:ln>" : solid(o.style.fill ?? deck.theme.accent)+"<a:ln w=\"\(emu(o.style.strokeWidth))\">\(solid(o.style.stroke))</a:ln>"
-                return "<p:sp><p:nvSpPr>\(nv)<p:cNvSpPr txBox=\"\(o.kind == .text ? 1 : 0)\"/><p:nvPr/></p:nvSpPr><p:spPr>\(xfrm(o))<a:prstGeom prst=\"\(shapes[o.shape] ?? "rect")\"><a:avLst/></a:prstGeom>\(style)</p:spPr><p:txBody><a:bodyPr wrap=\"square\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\"/><a:lstStyle/>\(paragraphs(o.text,style:o.textStyle,theme:deck.theme,runs:o.textRuns,hyperlink:{ target in hyperlinkNumber += 1; let id="rIdLink\(hyperlinkNumber)"; rels += "<Relationship Id=\"\(id)\" Type=\"\(r)/hyperlink\" Target=\"\(xml(target))\" TargetMode=\"External\"/>"; return id }))</p:txBody></p:sp>"
+                let shapes: [ShapeKind:String]=[.rectangle:"rect",.roundedRectangle:"roundRect",.ellipse:"ellipse",.circle:"ellipse",.polygon:"hexagon",.doubleArrow:"line",.speechBubble:"wedgeRoundRectCallout",.triangle:"triangle",.diamond:"diamond",.star:"star5",.line:"line",.arrow:"line"]
+                let style=objectStyleXML(o,theme:deck.theme)
+                return "<p:sp><p:nvSpPr>\(nv)<p:cNvSpPr txBox=\"\(o.kind == .text ? 1 : 0)\"/><p:nvPr/></p:nvSpPr><p:spPr>\(xfrm(o))<a:prstGeom prst=\"\(shapes[o.shape] ?? "rect")\"><a:avLst/></a:prstGeom>\(style)</p:spPr><p:txBody><a:bodyPr wrap=\"square\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\"/><a:lstStyle/>\(paragraphs(o.text,style:o.textStyle,theme:deck.theme,runs:o.textRuns,opacity:o.opacity,hyperlink:{ target in hyperlinkNumber += 1; let id="rIdLink\(hyperlinkNumber)"; rels += "<Relationship Id=\"\(id)\" Type=\"\(r)/hyperlink\" Target=\"\(xml(target))\" TargetMode=\"External\"/>"; return id }))</p:txBody></p:sp>"
             }
             for object in slide.objects { body += try objectXML(object) }
             if !(slide.animations ?? []).isEmpty { warnings.insert("Object animations are not exported to PowerPoint yet.") }

@@ -87,6 +87,8 @@ extension PowerPoint {
                 if let fill=node.first("spPr")?.direct("solidFill") ?? node.first("style")?.first("fillRef") { object.style.fill=fill.officeColor(palette:palette) }
                 if node.first("spPr")?.direct("noFill") != nil { object.style.fill=RGBA(0,0,0,0) }
                 if let line=node.first("spPr")?.direct("ln") { object.style.strokeWidth=line.number("w")/9525; if let color=line.officeColor(palette:palette) { object.style.stroke=color } }
+                readObjectEffects(node,object:&object,palette:palette)
+                if geometry == "line", node.first("tailEnd")?.attr("type") == "triangle" { object.shape=node.first("headEnd")?.attr("type") == "triangle" ? .doubleArrow : .arrow }
                 if !inherited { shapeIDs[node.first("cNvPr")?.attr("id") ?? ""]=object.id }
                 if node.localName == "cxnSp" {
                     let flipX=transform?.attr("flipH") == "1", flipY=transform?.attr("flipV") == "1"
@@ -108,7 +110,7 @@ extension PowerPoint {
                     guard let blip=node.first("blip"), let target=objectLinks[blip.attr("r:embed")] else { warnings.insert("An externally linked image was omitted."); continue }
                     let asset=try loadAsset(target); deck.assets[asset.id]=asset; object.kind = .image; object.image=ImageContent(assetID:asset.id)
                     if let crop=node.first("srcRect") { let l=crop.number("l")/100000,t=crop.number("t")/100000; object.image?.crop=Rect(l,t,1-l-crop.number("r")/100000,1-t-crop.number("b")/100000) }
-                    object.image?.fill=true; object.image?.flippedHorizontally=transform?.attr("flipH") == "1"; object.image?.flippedVertically=transform?.attr("flipV") == "1"; object.image?.mask=geometry == "ellipse" ? .ellipse : geometry == "roundRect" ? .roundedRectangle : .rectangle
+                    object.opacity=(node.first("blip")?.first("alphaModFix")?.number("amt",default:100000) ?? 100000)/100000; object.image?.fill=true; object.image?.flippedHorizontally=transform?.attr("flipH") == "1"; object.image?.flippedVertically=transform?.attr("flipV") == "1"; object.image?.mask=geometry == "ellipse" ? .ellipse : geometry == "roundRect" ? .roundedRectangle : .rectangle
                     if let reference=node.first("videoFile") ?? node.first("audioFile"), let target=objectLinks[reference.attr("r:link")] {
                         let mediaAsset=try loadAsset(target); deck.assets[mediaAsset.id]=mediaAsset
                         object.kind=reference.localName == "videoFile" ? .video : .audio

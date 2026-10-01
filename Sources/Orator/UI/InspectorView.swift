@@ -30,7 +30,7 @@ final class InspectorView: SurfaceView {
         field("Title",key:"slideTitle"); field("Section",key:"section")
         heading("PRESENTATION")
         theme.addItems(withTitles:Theme.all.map(\.name)); theme.target=self; theme.action=#selector(changeTheme); row("Theme",theme)
-        transition.addItems(withTitles:TransitionKind.allCases.map(\.rawValue)); transition.target=self; transition.action=#selector(changeTransition); row("Transition",transition)
+        transition.addItems(withTitles:TransitionKind.allCases.map(\.displayName)); transition.target=self; transition.action=#selector(changeTransition); row("Transition",transition)
         field("Duration",key:"duration"); field("Advance (s)",key:"advance")
         heading("ARRANGE")
         for (title,key) in [("Name","name"),("X","x"),("Y","y"),("Width","width"),("Height","height"),("Rotation","rotation"),("Opacity %","opacity")] { field(title,key:key) }
@@ -41,13 +41,13 @@ final class InspectorView: SurfaceView {
         let traits=NSStackView(views:[bold,italic,underline]); traits.spacing=8; add(traits)
         for button in [bold,italic,underline] { button.target=self; button.action=#selector(changeTraits); button.font = .systemFont(ofSize:11) }
         textColor.target=self; textColor.action=#selector(changeTextColor); row("Text color",textColor)
-        alignment.addItems(withTitles:TextAlignment.allCases.map(\.rawValue)); alignment.target=self; alignment.action=#selector(changeAlignment); row("Alignment",alignment)
-        fit.addItems(withTitles:TextFit.allCases.map(\.rawValue)); fit.target=self; fit.action=#selector(changeFit); row("Text fit",fit)
+        alignment.addItems(withTitles:TextAlignment.allCases.map(\.displayName)); alignment.target=self; alignment.action=#selector(changeAlignment); row("Alignment",alignment)
+        fit.addItems(withTitles:TextFit.allCases.map(\.displayName)); fit.target=self; fit.action=#selector(changeFit); row("Text fit",fit)
         button("Paragraph and Lists…",#selector(paragraphSettings))
         button("Highlight Selection",#selector(highlightText))
         button("Strikethrough",#selector(strikeText))
         heading("CONTENT")
-        chart.addItems(withTitles:ChartKind.allCases.map(\.rawValue)); chart.target=self; chart.action=#selector(changeChart); row("Chart type",chart)
+        chart.addItems(withTitles:ChartKind.allCases.map(\.displayName)); chart.target=self; chart.action=#selector(changeChart); row("Chart type",chart)
         button("Edit table / chart data…",#selector(editData))
         button("Image: Fit / Fill",#selector(toggleImageFill))
         button("Flip Image Horizontally",#selector(flipImage))
@@ -102,16 +102,16 @@ final class InspectorView: SurfaceView {
             if editor.canvas.selected.contains(object.id) { layers.select(layers.lastItem) }
         }
         fields["slideTitle"]?.stringValue=editor.currentSlide.title; fields["section"]?.stringValue=editor.currentSlide.section
-        theme.selectItem(withTitle:editor.presentation.deck.theme.name); transition.selectItem(withTitle:editor.currentSlide.transition.kind.rawValue)
+        theme.selectItem(withTitle:editor.presentation.deck.theme.name); transition.selectItem(withTitle:editor.currentSlide.transition.kind.displayName)
         fields["duration"]?.doubleValue=editor.currentSlide.transition.duration; fields["advance"]?.doubleValue=editor.currentSlide.transition.advanceAfter ?? 0
         for (key,field) in fields where !["duration","advance","slideTitle","section"].contains(key) { field.isEnabled=object != nil; if object == nil { field.stringValue="—" } }
         guard let o=object else { return }
         fields["name"]?.stringValue=o.name
         for (key,value) in [("x",o.frame.x),("y",o.frame.y),("width",o.frame.width),("height",o.frame.height),("rotation",o.rotation),("opacity",o.opacity*100),("size",o.textStyle.size)] { fields[key]?.stringValue=String(format:"%.1f",value) }
         fill.color=(o.style.fill ?? editor.presentation.deck.theme.accent).nsColor; textColor.color=(o.textStyle.color ?? editor.presentation.deck.theme.foreground).nsColor
-        font.selectItem(withTitle:o.textStyle.fontName); alignment.selectItem(withTitle:o.textStyle.alignment.rawValue); fit.selectItem(withTitle:o.textStyle.fit.rawValue)
+        font.selectItem(withTitle:o.textStyle.fontName); alignment.selectItem(withTitle:o.textStyle.alignment.displayName); fit.selectItem(withTitle:o.textStyle.fit.displayName)
         bold.state=o.textStyle.bold ? .on : .off; italic.state=o.textStyle.italic ? .on : .off; underline.state=o.textStyle.underline ? .on : .off
-        if let c=o.chart { chart.selectItem(withTitle:c.kind.rawValue) }
+        if let c=o.chart { chart.selectItem(withTitle:c.kind.displayName) }
     }
     @objc func changeField(_ sender: NSTextField) {
         guard !updating, let key=sender.identifier?.rawValue, let editor=editor else { return }

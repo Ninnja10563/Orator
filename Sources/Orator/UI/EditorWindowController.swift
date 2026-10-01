@@ -187,7 +187,7 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     }
     @objc func addSlide(_ sender: Any?) {
         canvas.finishText(); let menu=NSMenu()
-        for layout in Layout.allCases { let item=menu.addItem(withTitle:layout.rawValue,action:#selector(addLayout(_:)),keyEquivalent:""); item.target=self; item.representedObject=layout.rawValue }
+        for layout in Layout.allCases { let item=menu.addItem(withTitle:layout.displayName,action:#selector(addLayout(_:)),keyEquivalent:""); item.target=self; item.representedObject=layout.rawValue }
         menu.popUp(positioning:nil,at:NSPoint(x:20,y:split.bounds.height-20),in:split)
     }
     @objc func addLayout(_ sender: NSMenuItem) {
@@ -231,10 +231,10 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     @objc func addText(_ sender: Any?) { var o=SlideObject(kind:.text,name:"Text",frame:Rect(160,200,600,100)); o.text="Type your text"; insert(o); canvas.beginText(o) }
     @objc func insertShape(_ sender: Any?) {
         let menu=NSMenu()
-        for shape in ShapeKind.allCases { let item=menu.addItem(withTitle:shape.rawValue,action:#selector(addShape(_:)),keyEquivalent:""); item.target=self; item.representedObject=shape.rawValue }
+        for shape in ShapeKind.allCases { let item=menu.addItem(withTitle:shape.displayName,action:#selector(addShape(_:)),keyEquivalent:""); item.target=self; item.representedObject=shape.rawValue }
         menu.popUp(positioning:nil,at:NSPoint(x:300,y:split.bounds.height-20),in:split)
     }
-    @objc func addShape(_ sender: NSMenuItem) { var o=SlideObject(kind:.shape,name:"Shape",frame:Rect(300,220,320,220)); o.shape=ShapeKind(rawValue:sender.representedObject as? String ?? "rectangle") ?? .rectangle; insert(o) }
+    @objc func addShape(_ sender: NSMenuItem) { var o=SlideObject(kind:.shape,name:"Shape",frame:Rect(300,220,320,220)); o.shape=ShapeKind(rawValue:sender.representedObject as? String ?? "rectangle") ?? .rectangle; o.name=o.shape.displayName; if o.shape == .circle { o.frame.height=o.frame.width }; insert(o) }
     @objc func insertImage(_ sender: Any?) {
         let panel=NSOpenPanel(); panel.allowedContentTypes=[.image]; panel.allowsMultipleSelection=true
         panel.beginSheetModal(for:window!) { [weak self] result in guard result == .OK else { return }; for url in panel.urls { self?.loadImage(url) } }

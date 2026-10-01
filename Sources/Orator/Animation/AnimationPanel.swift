@@ -15,7 +15,7 @@ final class AnimationPanel: NSWindowController, NSTableViewDataSource, NSTableVi
         let scroll=NSScrollView(frame:NSRect(x:16,y:16,width:728,height:280)); scroll.autoresizingMask=[.width,.height]; scroll.hasVerticalScroller=true
         for (name,width) in [("Object",160.0),("Effect",120.0),("Trigger",120.0),("Start",90.0),("Duration",90.0)] { let column=NSTableColumn(identifier:NSUserInterfaceItemIdentifier(name)); column.title=name; column.width=width; table.addTableColumn(column) }
         table.dataSource=self; table.delegate=self; scroll.documentView=table; root.addSubview(scroll)
-        effect.addItems(withTitles:AnimationEffect.allCases.map(\.rawValue)); trigger.addItems(withTitles:AnimationStart.allCases.map(\.rawValue)); direction.addItems(withTitles:MotionDirection.allCases.map(\.rawValue))
+        effect.addItems(withTitles:AnimationEffect.allCases.map(\.displayName)); trigger.addItems(withTitles:AnimationStart.allCases.map(\.displayName)); direction.addItems(withTitles:MotionDirection.allCases.map(\.displayName))
         let row=NSStackView(views:[effect,trigger,direction,NSTextField(labelWithString:"Seconds"),duration,NSTextField(labelWithString:"Delay"),delay]); row.frame=NSRect(x:16,y:310,width:728,height:30); row.autoresizingMask=[.width,.minYMargin]; root.addSubview(row)
         let buttons=NSStackView(views:[NSButton(title:"Add to Selection",target:self,action:#selector(add)),NSButton(title:"Update",target:self,action:#selector(update)),NSButton(title:"Move Up",target:self,action:#selector(up)),NSButton(title:"Move Down",target:self,action:#selector(down)),NSButton(title:"Remove",target:self,action:#selector(remove)),NSButton(title:"Preview",target:self,action:#selector(preview))]); buttons.frame=NSRect(x:16,y:360,width:728,height:32); buttons.autoresizingMask=[.width,.minYMargin]; root.addSubview(buttons)
         let help=NSTextField(wrappingLabelWithString:"Select an object on the slide, choose an effect, then Add. Clicks advance each On Click group during presentation. Select a motion-path row to show its points on the canvas. Drag points to adjust the path; Option-click to add a point. Escape hides the path.")
@@ -29,15 +29,15 @@ final class AnimationPanel: NSWindowController, NSTableViewDataSource, NSTableVi
         guard animations.indices.contains(row) else { return nil }; let a=animations[row], schedule=AnimationEngine.schedule(animations)[row]
         switch column?.identifier.rawValue {
         case "Object":return slide?.objects.first { $0.id == a.objectID }?.name ?? "Object"
-        case "Effect":return a.effect.rawValue
-        case "Trigger":return a.start.rawValue
+        case "Effect":return a.effect.displayName
+        case "Trigger":return a.start.displayName
         case "Start":return "\(schedule.click): \(String(format:"%.2fs",schedule.start))"
         default:return String(format:"%.2fs",a.duration)
         }
     }
     func tableViewSelectionDidChange(_ notification: Notification) {
         guard animations.indices.contains(table.selectedRow) else { return }; let a=animations[table.selectedRow]
-        effect.selectItem(withTitle:a.effect.rawValue); trigger.selectItem(withTitle:a.start.rawValue); direction.selectItem(withTitle:a.direction.rawValue); duration.doubleValue=a.duration; delay.doubleValue=a.delay
+        effect.selectItem(withTitle:a.effect.displayName); trigger.selectItem(withTitle:a.start.displayName); direction.selectItem(withTitle:a.direction.displayName); duration.doubleValue=a.duration; delay.doubleValue=a.delay
         if editor?.selectedSlideID == slideID { editor?.canvas.selected=[a.objectID]; editor?.canvas.motionPathID=a.effect == .motionPath ? a.id : nil }
     }
     func configured(_ animation: ObjectAnimation) -> ObjectAnimation {

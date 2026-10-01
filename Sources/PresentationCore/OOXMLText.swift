@@ -4,12 +4,14 @@ import FoundationXML
 #endif
 
 extension PowerPoint {
-    static func paragraphs(_ text: String,style: TextStyle,theme: Theme,runs: [TextRun]? = nil,hyperlink: ((String) -> String)? = nil) -> String {
+    static func paragraphs(_ text: String,style: TextStyle,theme: Theme,runs: [TextRun]? = nil,opacity: Double = 1,hyperlink: ((String) -> String)? = nil) -> String {
         var offset=0
         func properties(_ value: TextStyle) -> String {
+            let foreground=value.color ?? theme.foreground
+            let visible=RGBA(foreground.red,foreground.green,foreground.blue,foreground.alpha*opacity)
             let link=value.hyperlink.flatMap { hyperlink?($0) }.map { "<a:hlinkClick r:id=\"\(xml($0))\"/>" } ?? ""
             let highlight=value.highlight.map { "<a:highlight>\(color($0))</a:highlight>" } ?? ""
-            return "<a:rPr lang=\"en-US\" sz=\"\(Int(value.size*75))\" b=\"\(value.bold ? 1 : 0)\" i=\"\(value.italic ? 1 : 0)\" u=\"\(value.underline ? "sng" : "none")\" strike=\"\(value.strikethrough == true ? "sngStrike" : "noStrike")\" spc=\"\(Int(((value.tracking ?? 0)*75).rounded()))\">\(solid(value.color ?? theme.foreground))\(highlight)<a:latin typeface=\"\(xml(value.fontName))\"/>\(link)</a:rPr>"
+            return "<a:rPr lang=\"en-US\" sz=\"\(Int(value.size*75))\" b=\"\(value.bold ? 1 : 0)\" i=\"\(value.italic ? 1 : 0)\" u=\"\(value.underline ? "sng" : "none")\" strike=\"\(value.strikethrough == true ? "sngStrike" : "noStrike")\" spc=\"\(Int(((value.tracking ?? 0)*75).rounded()))\">\(solid(visible))\(highlight)<a:latin typeface=\"\(xml(value.fontName))\"/>\(link)</a:rPr>"
         }
         return text.components(separatedBy:"\n").map { line in
             let length=line.utf16.count, start=offset; offset += length+1

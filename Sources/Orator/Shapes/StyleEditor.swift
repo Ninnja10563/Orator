@@ -8,7 +8,7 @@ extension EditorWindowController {
         let stack=NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing=10; stack.frame=NSRect(x:0,y:0,width:440,height:340)
         let fill=NSColorWell(), border=NSColorWell(), end=NSColorWell(), shadowColor=NSColorWell()
         fill.color=(object.style.fill ?? presentation.deck.theme.accent).nsColor; border.color=object.style.stroke.nsColor; end.color=(object.style.gradient?.end ?? .white).nsColor; shadowColor.color=(object.style.shadow?.color ?? RGBA(0,0,0,0.25)).nsColor
-        let pattern=NSPopUpButton(); pattern.addItems(withTitles:BorderPattern.allCases.map(\.rawValue)); pattern.selectItem(withTitle:(object.style.borderPattern ?? .solid).rawValue)
+        let pattern=NSPopUpButton(); pattern.addItems(withTitles:BorderPattern.allCases.map(\.displayName)); pattern.selectItem(withTitle:(object.style.borderPattern ?? .solid).displayName)
         let gradient=NSButton(checkboxWithTitle:"Gradient fill",target:nil,action:nil), shadow=NSButton(checkboxWithTitle:"Shadow",target:nil,action:nil); gradient.state=object.style.gradient == nil ? .off : .on; shadow.state=object.style.shadow == nil ? .off : .on
         var fields: [String:NSTextField]=[:]
         func row(_ name: String,_ views: [NSView]) { let label=NSTextField(labelWithString:name); label.widthAnchor.constraint(equalToConstant:110).isActive=true; stack.addArrangedSubview(NSStackView(views:[label]+views)) }
