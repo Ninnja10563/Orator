@@ -33,13 +33,15 @@ jobs:
       - name: Restore arm64 distribution
         run: scripts/build-app.sh
       - name: Package
-        run: ditto -c -k --sequesterRsrc --keepParent build/Orator.app build/Orator-macOS-arm64.zip
+        run: scripts/package-app.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: Orator-macOS-arm64
           path: |
             build/Orator-macOS-arm64.zip
+            build/Orator-macOS-arm64.dmg
+            build/SHA256SUMS
             build/smoke.tiff
             build/workspace.png
             build/workspace-dark.png

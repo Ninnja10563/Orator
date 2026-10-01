@@ -12,7 +12,7 @@ scripts/build-app.sh
 open build/Orator.app
 ```
 
-The build creates an arm64 application with a Retina icon and an ad-hoc signature. A separate [distribution workflow](docs/DISTRIBUTION.md) supports Developer ID signing, notarization and DMG creation; its required credentials are not yet configured. Downloadable app archives and visual test captures are available from successful [macOS workflow runs](https://github.com/Ninnja10563/Orator/actions/workflows/macos.yml).
+The build creates an arm64 application with a Retina icon and an ad-hoc signature. A separate [distribution workflow](docs/DISTRIBUTION.md) supports Developer ID signing, notarization and DMG creation; its required credentials are not yet configured. Downloadable ZIP/DMG app packages, checksums and visual test captures are available from successful [macOS workflow runs](https://github.com/Ninnja10563/Orator/actions/workflows/macos.yml).
 
 ## Editing
 

@@ -1,6 +1,6 @@
 # Working with Orator
 
-Orator runs on Apple Silicon Macs with macOS 14 or later. Download the app archive from a successful macOS workflow run, extract it, and move Orator.app to Applications. Current CI archives have an ad-hoc signature; they have not been notarized by Apple. The separate distribution workflow produces a notarized ZIP and DMG when the repository owner configures Developer ID credentials.
+Orator runs on Apple Silicon Macs with macOS 14 or later. Download the ZIP or DMG from a successful macOS workflow run. Extract the ZIP and move Orator.app to Applications, or open the DMG and drag Orator to its Applications shortcut. Current CI archives have an ad-hoc signature; they have not been notarized by Apple. The separate distribution workflow produces a notarized ZIP and DMG when the repository owner configures Developer ID credentials.
 
 ## Start a presentation
 
