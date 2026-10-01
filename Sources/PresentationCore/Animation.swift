@@ -18,6 +18,7 @@ public struct ObjectAnimation: Codable, Equatable, Identifiable, Sendable {
     public var targetColor: RGBA = .accent
     /// Absolute slide positions for the object's center, linearly interpolated between points.
     public var path: [Point] = []
+    public var curvedPath: Bool? = nil
     public init(objectID: UUID, effect: AnimationEffect) { self.objectID=objectID; self.effect=effect }
 }
 public struct ScheduledAnimation: Equatable, Sendable {
@@ -27,6 +28,17 @@ public struct ScheduledAnimation: Equatable, Sendable {
     public var end: Double { start+animation.duration }
 }
 public enum AnimationEngine {
+    /// Catmull-Rom interpolation passes through editable points without extra hidden handles.
+    public static func pathPosition(_ animation: ObjectAnimation,progress: Double) -> Point {
+        let points=animation.path
+        guard points.count > 1 else { return points.first ?? Point() }
+        let position=min(1,max(0,progress))*Double(points.count-1), index=min(points.count-2,Int(position)), t=position-Double(index)
+        let p=points[index], q=points[index+1]
+        guard animation.curvedPath == true, points.count > 2 else { return Point(p.x+(q.x-p.x)*t,p.y+(q.y-p.y)*t) }
+        let before=points[max(0,index-1)], after=points[min(points.count-1,index+2)]
+        func component(_ a: Double,_ b: Double,_ c: Double,_ d: Double) -> Double { 0.5*((2*b)+(-a+c)*t+(2*a-5*b+4*c-d)*t*t+(-a+3*b-3*c+d)*t*t*t) }
+        return Point(component(before.x,p.x,q.x,after.x),component(before.y,p.y,q.y,after.y))
+    }
     public static func schedule(_ animations: [ObjectAnimation]) -> [ScheduledAnimation] {
         var result: [ScheduledAnimation]=[], click=0
         for animation in animations {
@@ -94,9 +106,8 @@ public enum AnimationEngine {
                 object.style.fill=RGBA(from.red+(to.red-from.red)*t,from.green+(to.green-from.green)*t,from.blue+(to.blue-from.blue)*t)
             case .motionPath:
                 if !reducedMotion, a.path.count > 1 {
-                    let position=t*Double(a.path.count-1), segment=min(a.path.count-2,Int(position)), fraction=position-Double(segment)
-                    let p=a.path[segment], q=a.path[segment+1], f=object.frame
-                    object.transform(to:Rect(p.x+(q.x-p.x)*fraction-f.width/2,p.y+(q.y-p.y)*fraction-f.height/2,f.width,f.height))
+                    let point=pathPosition(a,progress:t), f=object.frame
+                    object.transform(to:Rect(point.x-f.width/2,point.y-f.height/2,f.width,f.height))
                 }
             }
             result.objects[i]=object

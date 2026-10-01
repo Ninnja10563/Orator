@@ -104,7 +104,8 @@ final class CanvasView: NSView, NSTextViewDelegate {
         }
         if let id=motionPathID, let animation=slide.animations?.first(where: { $0.id == id }), animation.effect == .motionPath {
             let points=animation.path.map { NSPoint(x:slideRect.minX+$0.x*scale,y:slideRect.minY+$0.y*scale) }
-            let path=NSBezierPath(); if let first=points.first { path.move(to:first); for point in points.dropFirst() { path.line(to:point) } }; NSColor.systemOrange.setStroke(); path.setLineDash([5,3],count:2,phase:0); path.lineWidth=2; path.stroke()
+            let displayPoints=animation.curvedPath == true ? (0...120).map { i -> NSPoint in let point=AnimationEngine.pathPosition(animation,progress:Double(i)/120); return NSPoint(x:slideRect.minX+point.x*scale,y:slideRect.minY+point.y*scale) } : points
+            let path=NSBezierPath(); if let first=displayPoints.first { path.move(to:first); for point in displayPoints.dropFirst() { path.line(to:point) } }; NSColor.systemOrange.setStroke(); path.setLineDash([5,3],count:2,phase:0); path.lineWidth=2; path.stroke()
             for point in points { NSColor.controlBackgroundColor.setFill(); NSColor.systemOrange.setStroke(); let handle=NSBezierPath(ovalIn:NSRect(x:point.x-5,y:point.y-5,width:10,height:10)); handle.fill(); handle.stroke() }
         }
         if let m=marquee { NSColor.controlAccentColor.withAlphaComponent(0.10).setFill(); viewRect(m).fill(); NSColor.controlAccentColor.setStroke(); NSBezierPath(rect:viewRect(m)).stroke() }

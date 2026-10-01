@@ -223,4 +223,13 @@ extension AdvancedTests {
         object.rotation=90
         XCTAssertTrue(Geometry.hit(Point(50,50),object:object))
     }
+    func testCurvedMotionPathPassesThroughEditablePoints() {
+        var animation=ObjectAnimation(objectID:UUID(),effect:.motionPath); animation.path=[Point(0,0),Point(100,200),Point(200,0)]; animation.curvedPath=true
+        XCTAssertEqual(AnimationEngine.pathPosition(animation,progress:0),Point())
+        XCTAssertEqual(AnimationEngine.pathPosition(animation,progress:0.5),Point(100,200))
+        XCTAssertEqual(AnimationEngine.pathPosition(animation,progress:1),Point(200,0))
+        let curved=AnimationEngine.pathPosition(animation,progress:0.25)
+        animation.curvedPath=false
+        XCTAssertNotEqual(curved,AnimationEngine.pathPosition(animation,progress:0.25))
+    }
 }
