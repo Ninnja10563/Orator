@@ -122,6 +122,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item(slide,"Configure Connector…",#selector(EditorWindowController.configureConnector(_:)))
         item(slide,"Object Appearance…",#selector(EditorWindowController.objectAppearance(_:)))
         let arrange=menu("Arrange"); item(arrange,"Group",#selector(EditorWindowController.groupObjects(_:)),"g",[.command,.option]); item(arrange,"Ungroup",#selector(EditorWindowController.ungroupObjects(_:)),"g",[.command,.option,.shift]); item(arrange,"Bring to Front",#selector(EditorWindowController.bringToFront(_:))); item(arrange,"Send to Back",#selector(EditorWindowController.sendToBack(_:))); item(arrange,"Lock / Unlock Selection",#selector(EditorWindowController.toggleLock(_:))); item(arrange,"Unlock All",#selector(EditorWindowController.unlockAll(_:))); arrange.addItem(.separator())
+        item(arrange,"Edit Group",#selector(EditorWindowController.editSelectedGroup(_:)))
+        item(arrange,"Finish Editing Group",#selector(EditorWindowController.finishGroupEditing(_:)))
         for (i,title) in ["Align Left","Align Center","Align Right","Align Top","Align Middle","Align Bottom","Distribute Horizontally","Distribute Vertically"].enumerated() { item(arrange,title,#selector(EditorWindowController.alignObjects(_:))); arrange.items.last?.tag=i }
         let present=menu("Present"); item(present,"Present from Current Slide",#selector(EditorWindowController.startPresentation(_:)),"p",[.command,.shift])
         item(present,"Rehearse Timings",#selector(EditorWindowController.rehearsePresentation(_:)))

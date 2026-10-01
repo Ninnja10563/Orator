@@ -117,7 +117,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
             if event.modifierFlags.contains(.shift) { if selected.contains(object.id) { selected.remove(object.id) } else { selected.insert(object.id) } }
             else if !selected.contains(object.id) { selected=[object.id] }
             originalBounds=Geometry.bounds(slide.objects.filter { selected.contains($0.id) && !$0.locked })
-            if event.clickCount == 2 { if object.kind == .text || object.kind == .shape { beginText(object) } else if object.kind == .table { beginTableCell(object,at:p) } else if object.kind == .chart { editor?.editData(nil) }; mode = .none; return }
+            if event.clickCount == 2 { if object.kind == .text || object.kind == .shape { beginText(object) } else if object.kind == .table { beginTableCell(object,at:p) } else if object.kind == .chart { editor?.editData(nil) } else if object.kind == .group { editor?.editGroup(object.id) }; mode = .none; return }
             mode = .move
         } else { if !event.modifierFlags.contains(.shift) { selected=[] }; mode = .marquee; marquee=Rect(p.x,p.y,0,0) }
     }
@@ -170,6 +170,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
         original=nil; needsDisplay=true
     }
     override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53, editor?.editingGroupIDs.isEmpty == false { editor?.finishGroupEditing(nil); return }
         if event.keyCode == 53 { motionPathID=nil; finishText(); preview=nil; original=nil; mode = .none; selected=[]; return }
         if event.keyCode == 36, let o=slide.objects.first(where: { selected.contains($0.id) && ($0.kind == .text || $0.kind == .shape) }) { beginText(o); return }
         if event.keyCode == 48 {

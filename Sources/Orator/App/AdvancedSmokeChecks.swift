@@ -48,8 +48,16 @@ func checkAdvancedEditing(_ editor: EditorWindowController) throws {
     guard editor.currentSlide.objects[0].frame.x == 170 else { fatalError("Master layout edit was not stored") }
     _=try PresentationFile.decode(document.data(ofType:"app.orator.presentation"))
     editor.editMaster(nil)
+    editor.canvas.selected=Set(editor.currentSlide.objects.prefix(2).map(\.id)); grouped { editor.groupObjects(nil) }
+    guard let groupID=editor.canvas.selected.first else { fatalError("Grouping failed") }; editor.editGroup(groupID)
+    guard editor.currentSlide.id == groupID else { fatalError("Group isolation failed") }
+    let groupedText=editor.currentSlide.objects[0]; editor.canvas.beginText(groupedText)
+    let groupedEditor=editor.canvas.subviews.compactMap { $0 as? InlineTextView }.first!; groupedEditor.string="Saved inside group"
+    let savedGroup=try PresentationFile.decode(document.data(ofType:"app.orator.presentation"))
+    guard savedGroup.slides[0].objects.first(where: { $0.id == groupID })?.children.first?.text == "Saved inside group" else { fatalError("Active group text was omitted from saving") }
+    grouped { editor.canvas.finishText() }; document.undoManager?.undo(); editor.finishGroupEditing(nil)
     try checkMediaPlayback()
-    document.deck=original; document.undoManager?.removeAllActions(); editor.editingMasterID=nil; editor.editingLayoutID=nil; editor.selectedSlideID=original.slides[0].id; editor.canvas.selected=[]; editor.refresh(); editor.window?.makeKeyAndOrderFront(nil)
+    document.deck=original; document.undoManager?.removeAllActions(); editor.editingMasterID=nil; editor.editingLayoutID=nil; editor.editingGroupIDs=[]; editor.selectedSlideID=original.slides[0].id; editor.canvas.selected=[]; editor.refresh(); editor.window?.makeKeyAndOrderFront(nil)
     print("Advanced AppKit checks: table cells/undo, chart series, crop geometry, master layouts, and AVFoundation playback passed")
 }
 private func checkMediaPlayback() throws {

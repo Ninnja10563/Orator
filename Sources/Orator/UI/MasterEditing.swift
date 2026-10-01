@@ -3,14 +3,14 @@ import PresentationCore
 
 extension EditorWindowController {
     @objc func editMaster(_ sender: Any?) {
-        canvas.finishText()
+        canvas.finishText(); editingGroupIDs=[]
         if editingMasterID != nil { editingMasterID=nil; editingLayoutID=nil; canvas.selected=[]; refresh(); return }
         if presentation.deck.masters?.isEmpty != false { presentation.perform(.setMasters([SlideMaster()]),named:"Create Master") }
         editingMasterID=currentSlide.masterID ?? presentation.deck.masters?.first?.id
         canvas.selected=[]; refresh()
     }
     @objc func addMaster(_ sender: Any?) {
-        canvas.finishText(); var master=SlideMaster(); master.name="Master \((presentation.deck.masters?.count ?? 0)+1)"
+        canvas.finishText(); editingGroupIDs=[]; var master=SlideMaster(); master.name="Master \((presentation.deck.masters?.count ?? 0)+1)"
         presentation.perform(.setMasters((presentation.deck.masters ?? [])+[master]),named:"Add Master")
         editingLayoutID=nil; editingMasterID=master.id; canvas.selected=[]; refresh()
     }
@@ -42,7 +42,7 @@ extension EditorWindowController {
 
 extension EditorWindowController {
     @objc func saveAsMasterLayout(_ sender: Any?) {
-        canvas.finishText(); guard editingMasterID == nil, let masterID=currentSlide.masterID, var masters=presentation.deck.masters, let m=masters.firstIndex(where: { $0.id == masterID }) else { NSSound.beep(); return }
+        canvas.finishText(); editingGroupIDs=[]; guard editingMasterID == nil, let masterID=currentSlide.masterID, var masters=presentation.deck.masters, let m=masters.firstIndex(where: { $0.id == masterID }) else { NSSound.beep(); return }
         var objects=currentSlide.objects.map { $0.duplicated(offset:Point()) }
         for i in objects.indices { objects[i].placeholderKey=objects[i].name == "Title" ? "title" : "content\(i)"; objects[i].layoutLinked=nil }
         let layout=MasterLayout(name:currentSlide.title,objects:objects); masters[m].layouts.append(layout)
@@ -51,7 +51,7 @@ extension EditorWindowController {
     @objc func applyMasterLayout(_ sender: Any?) { layoutMenu(edit:false) }
     @objc func editMasterLayout(_ sender: Any?) { layoutMenu(edit:true) }
     private func layoutMenu(edit: Bool) {
-        canvas.finishText(); let masterID=editingMasterID ?? currentSlide.masterID
+        canvas.finishText(); editingGroupIDs=[]; let masterID=editingMasterID ?? currentSlide.masterID
         guard let master=presentation.deck.masters?.first(where: { $0.id == masterID }), !master.layouts.isEmpty else { let alert=NSAlert(); alert.messageText="No custom layouts yet"; alert.informativeText="Create a slide with the placeholders you need, then choose Slide → Save as Master Layout."; alert.runModal(); return }
         let menu=NSMenu()
         for layout in master.layouts { let item=menu.addItem(withTitle:layout.name,action:edit ? #selector(beginLayoutEditing(_:)) : #selector(assignLayout(_:)),keyEquivalent:""); item.target=self; item.representedObject=[master.id.uuidString,layout.id.uuidString] }

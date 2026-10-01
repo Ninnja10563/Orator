@@ -16,11 +16,7 @@ final class PresentationDocument: NSDocument {
     override func defaultDraftName() -> String { deck.title }
     var snapshot: Presentation {
         var snapshot=deck
-        if let editor=windowControllers.first as? EditorWindowController, let pending=editor.canvas.pendingTextSlide, let i=snapshot.slides.firstIndex(where: { $0.id == pending.id }) { snapshot.slides[i]=pending }
-        if let editor=windowControllers.first as? EditorWindowController, let id=editor.editingMasterID, let pending=editor.canvas.pendingTextSlide, let i=snapshot.masters?.firstIndex(where: { $0.id == id }) {
-            if let layout=snapshot.masters?[i].layouts.firstIndex(where: { $0.id == editor.editingLayoutID }) { snapshot.masters?[i].layouts[layout].objects=pending.objects }
-            else { snapshot.masters?[i].objects=pending.objects }
-        }
+        if let editor=windowControllers.first as? EditorWindowController, let pending=editor.canvas.pendingTextSlide, let edit=editor.replacementEdit(pending) { _=try? edit.apply(to:&snapshot) }
         return snapshot
     }
     override func data(ofType typeName: String) throws -> Data { try PresentationFile.encode(snapshot) }

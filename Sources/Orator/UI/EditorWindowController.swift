@@ -15,8 +15,14 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     let notesPane=SurfaceView()
     var editingMasterID: UUID?
     var editingLayoutID: UUID?
+    var editingGroupIDs: [UUID]=[]
     var selectedSlideID: UUID
     var currentSlide: Slide {
+        var slide=baseSlide
+        for id in editingGroupIDs { guard let group=slide.objects.first(where: { $0.id == id && $0.kind == .group }) else { break }; slide.id=group.id; slide.title=group.name; slide.objects=group.children; slide.animations=nil; slide.guides=[] }
+        return slide
+    }
+    var baseSlide: Slide {
         if let id=editingMasterID, let master=presentation.deck.masters?.first(where: { $0.id == id }) {
             if let layout=master.layouts.first(where: { $0.id == editingLayoutID }) { var slide=Slide(); slide.id=layout.id; slide.title=layout.name; slide.objects=layout.objects; slide.masterID=master.id; return slide }
             return master.slide
@@ -109,6 +115,8 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     func refresh() {
         refreshing=true; defer { refreshing=false }
         if !presentation.deck.slides.contains(where: { $0.id == selectedSlideID }) { selectedSlideID=presentation.deck.slides[0].id }
+        var groupObjects=baseSlide.objects, validGroups: [UUID]=[]
+        for id in editingGroupIDs { guard let group=groupObjects.first(where: { $0.id == id && $0.kind == .group }) else { break }; validGroups.append(id); groupObjects=group.children }; editingGroupIDs=validGroups
         canvas.selected.formIntersection(Set(currentSlide.objects.map(\.id)))
         if editingMasterID != nil { thumbnails.removeAll() }
         navigator.reloadData()
@@ -120,17 +128,14 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
         }
         status.stringValue="Slide \((presentation.deck.slides.firstIndex { $0.id == selectedSlideID } ?? 0)+1) of \(presentation.deck.slides.count)   ·   \(Int(canvas.scale*100))%"
         if editingMasterID != nil { status.stringValue="EDITING MASTER — "+currentSlide.title+" · Slide → Finish Editing Master to return" }
+        if !editingGroupIDs.isEmpty { status.stringValue="EDITING GROUP — "+currentSlide.title+" · Escape to return" }
         canvas.needsDisplay=true; inspector.refresh()
         thumbnails=thumbnails.filter { id,_ in presentation.deck.slides.contains { $0.id == id } }
     }
     func selectionChanged() { inspector.refresh() }
     func commit(_ slide: Slide, name: String) {
-        guard slide != currentSlide else { return }
-        if let id=editingMasterID, var masters=presentation.deck.masters, let i=masters.firstIndex(where: { $0.id == id }) {
-            if let layout=masters[i].layouts.firstIndex(where: { $0.id == editingLayoutID }) { masters[i].layouts[layout].objects=slide.objects; masters[i].layouts[layout].name=slide.title }
-            else { masters[i].objects=slide.objects; masters[i].background=slide.background; masters[i].name=slide.title }
-            presentation.perform(.setMasters(masters),named:name)
-        } else { presentation.perform(.replaceSlide(slide),named:name) }
+        guard slide != currentSlide, let edit=replacementEdit(slide) else { return }
+        presentation.perform(edit,named:name)
     }
     func mutateSelection(_ name: String, _ action: (inout SlideObject) -> Void) {
         canvas.finishText(); var slide=currentSlide
@@ -145,7 +150,7 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
         }
     }
     func textDidChange(_ notification: Notification) {
-        guard !refreshing else { return }; var slide=currentSlide; slide.notes=notes.string; commit(slide,name:"Edit Speaker Notes")
+        guard !refreshing else { return }; var slide=editingGroupIDs.isEmpty ? currentSlide : baseSlide; slide.notes=notes.string; commit(slide,name:"Edit Speaker Notes")
     }
     func numberOfRows(in tableView: NSTableView) -> Int { presentation.deck.slides.count }
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
@@ -163,7 +168,7 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     func tableViewSelectionDidChange(_ notification: Notification) {
         guard !refreshing, navigator.selectedRow >= 0 else { return }
         let nextID=presentation.deck.slides[navigator.selectedRow].id
-        canvas.finishText(); editingMasterID=nil; editingLayoutID=nil; selectedSlideID=nextID; canvas.selected=[]; notes.string=currentSlide.notes; refresh()
+        canvas.finishText(); editingMasterID=nil; editingLayoutID=nil; editingGroupIDs=[]; selectedSlideID=nextID; canvas.selected=[]; notes.string=currentSlide.notes; refresh()
     }
     func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? {
         let item=NSPasteboardItem(); item.setString(presentation.deck.slides[row].id.uuidString,forType:slideDrag); return item
