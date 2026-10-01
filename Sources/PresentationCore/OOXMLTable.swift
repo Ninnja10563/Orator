@@ -32,7 +32,7 @@ extension PowerPoint {
     }
     static func readTable(_ node: XMLElement,style: TextStyle,links: [String:String]) throws -> TableContent {
         let rows=node.descendants("tr"); var table=TableContent(); table.cells=[]; table.styles=[:]
-        table.rowHeights=rows.map { max(1,$0.number("h")) }; table.columnWidths=node.descendants("gridCol").map { max(1,$0.number("w")) }
+        table.rowHeights=rows.map { max(0.001,$0.number("h")/9525) }; table.columnWidths=node.descendants("gridCol").map { max(0.001,$0.number("w")/9525) }
         var merges: [CellMerge]=[]
         for (r,row) in rows.enumerated() {
             var values: [String]=[]
