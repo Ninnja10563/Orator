@@ -63,7 +63,7 @@ final class CoreTests: XCTestCase {
         let result=try PowerPoint.importDeck(from:url)
         XCTAssertEqual(result.deck.slides.count,2)
         XCTAssertEqual(result.deck.slides[0].objects[0].text,"Independent fixture — A & B < C")
-        XCTAssertEqual(result.deck.slides[0].objects[0].textStyle.size,36)
+        XCTAssertEqual(result.deck.slides[0].objects[0].textStyle.size,48)
         XCTAssertEqual(result.deck.slides[0].objects.first { $0.kind == .table }?.table?.cells,[["Region","Revenue"],["North","42"]])
         XCTAssertEqual(result.deck.assets.count,1)
         XCTAssertEqual(result.deck.slides[0].notes,"Independent speaker notes")

@@ -10,7 +10,7 @@ final class InlineTextView: NSTextView {
     private let typingUndo=UndoManager()
     override var undoManager: UndoManager? { typingUndo }
     func restoreFormatting(_ value: NSAttributedString,typing: [NSAttributedString.Key:Any],selection: NSRange,name: String) {
-        let previous=attributedString(), previousTyping=typingAttributes, previousSelection=selectedRange()
+        let previous=NSAttributedString(attributedString:attributedString()), previousTyping=typingAttributes, previousSelection=selectedRange()
         undoManager?.registerUndo(withTarget:self) { target in target.restoreFormatting(previous,typing:previousTyping,selection:previousSelection,name:name) }
         undoManager?.setActionName(name); textStorage?.setAttributedString(value); typingAttributes=typing
         setSelectedRange(NSRange(location:min(value.length,selection.location),length:min(selection.length,max(0,value.length-selection.location)))); didChangeText()

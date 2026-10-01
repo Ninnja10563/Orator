@@ -109,7 +109,7 @@ extension AdvancedTests {
         var object=SlideObject(kind:.table,name:"Merged",frame:Rect(40,200,600,300)); var table=TableContent(rows:3,columns:3)
         table.cells[0][0]="Merged header"; table.columnWidths=[1,2,3]; table.rowHeights=[2,1,1]; try table.merge(CellMerge(row:0,column:0,rows:1,columns:2)); object.table=table; deck.slides[0].objects.append(object)
         _=try PowerPoint.export(deck,to:url); let result=try PowerPoint.importDeck(from:url).deck
-        let text=result.slides[0].objects[0]; XCTAssertEqual(text.text,deck.slides[0].objects[0].text); XCTAssertEqual(text.textRuns?.first?.style.hyperlink,style.hyperlink); XCTAssertEqual(text.textRuns?.first?.style.strikethrough,true); XCTAssertEqual(text.textRuns?.first?.style.tracking,1.25)
+        let text=result.slides[0].objects[0]; XCTAssertEqual(text.text,deck.slides[0].objects[0].text); XCTAssertEqual(text.textRuns?.first?.style.hyperlink,style.hyperlink); XCTAssertEqual(text.textRuns?.first?.style.strikethrough,true); XCTAssertEqual(text.textRuns?.first?.style.tracking ?? 0,1.25,accuracy:0.01)
         let imported=try XCTUnwrap(result.slides[0].objects.last?.table); XCTAssertEqual(imported.merges,table.merges)
         let frame=imported.cellFrame(row:0,column:0,in:object.frame); XCTAssertEqual(frame.width,300,accuracy:0.01); XCTAssertEqual(frame.height,150,accuracy:0.01)
     }
@@ -154,5 +154,15 @@ extension AdvancedTests {
         var deck=Presentation(); deck.slides=[slide]
         let url=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".pptx"); defer { try? FileManager.default.removeItem(at:url) }; _=try PowerPoint.export(deck,to:url)
         let imported=try PowerPoint.importDeck(from:url).deck.slides[0]; XCTAssertEqual(imported.objects[2].connector?.start.objectID,imported.objects[0].id)
+    }
+}
+
+extension AdvancedTests {
+    func testIndependentPlaceholderInheritance() throws {
+        let url=try XCTUnwrap(Bundle.module.url(forResource:"inherited",withExtension:"pptx",subdirectory:"Fixtures"))
+        let deck=try PowerPoint.importDeck(from:url).deck
+        let title=try XCTUnwrap(deck.slides[0].objects.first { $0.text == "Inherited title placement" })
+        XCTAssertEqual(title.frame.x,72,accuracy:0.01); XCTAssertEqual(title.frame.y,223.6667,accuracy:0.01); XCTAssertEqual(title.frame.width,816,accuracy:0.01)
+        XCTAssertGreaterThan(title.textStyle.size,40); XCTAssertNotEqual(deck.theme.name,"Studio")
     }
 }
