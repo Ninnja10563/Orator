@@ -49,7 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     for (i,kind) in ShapeKind.allCases.enumerated() { var object=SlideObject(kind:.shape,name:kind.displayName,frame:Rect(Double(i%4)*280+40,Double(i/4)*160+30,220,100)); object.shape=kind; object.style.gradient=GradientFill(end:RGBA(0.8,0.2,0.1),angle:30); object.style.shadow=ObjectShadow(); object.style.strokeWidth=2; object.style.stroke = .ink; object.opacity=0.7; shapes.objects.append(object) }
                     var connector=SlideObject(kind:.shape,name:"Attached",frame:Rect(0,0,1,1)); connector.shape = .line; connector.connector=Connector(start:ConnectorEndpoint(point:Point(),objectID:shapes.objects[0].id,anchor:.right),end:ConnectorEndpoint(point:Point(),objectID:shapes.objects[1].id,anchor:.left)); shapes.objects.append(connector); compatibility.slides.append(shapes)
                     for kind in TransitionKind.allCases { var slide=Slide(); slide.transition.kind=kind; slide.transition.direction = .up; slide.transition.duration=1.25; slide.transition.advanceAfter=4.5; slide.transition.advanceOnClick=false; compatibility.slides.append(slide) }
-                    var grouped=Slide(); var group=SlideObject(kind:.group,name:"Editable group",frame:Rect(40,30,500,300)); group.rotation=12; group.children=Array(shapes.objects.prefix(2)); grouped.objects=[group]; compatibility.slides.append(grouped)
+                    var grouped=Slide(); var group=SlideObject(kind:.group,name:"Editable group",frame:Rect(40,30,500,300)); group.rotation=12; group.children=SlideObject.duplicateBatch(Array(shapes.objects.prefix(2)),offset:Point()); grouped.objects=[group]; compatibility.slides.append(grouped)
                     _=try PowerPoint.export(compatibility,to:url.deletingLastPathComponent().appendingPathComponent("compatibility.pptx"))
                     if let view=editor.window?.contentView?.superview {
                         view.layoutSubtreeIfNeeded()
@@ -127,14 +127,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item(slide,"Add Master Footer",#selector(EditorWindowController.addFooter(_:)))
         item(slide,"Animation Timeline…",#selector(EditorWindowController.showAnimations(_:)))
         item(slide,"Comments…",#selector(EditorWindowController.showComments(_:)))
-        item(slide,"Configure Connector…",#selector(EditorWindowController.configureConnector(_:)))
-        item(slide,"Object Appearance…",#selector(EditorWindowController.objectAppearance(_:)))
         let arrange=menu("Arrange"); item(arrange,"Group",#selector(EditorWindowController.groupObjects(_:)),"g",[.command,.option]); item(arrange,"Ungroup",#selector(EditorWindowController.ungroupObjects(_:)),"g",[.command,.option,.shift]); item(arrange,"Bring to Front",#selector(EditorWindowController.bringToFront(_:))); item(arrange,"Send to Back",#selector(EditorWindowController.sendToBack(_:))); item(arrange,"Lock / Unlock Selection",#selector(EditorWindowController.toggleLock(_:))); item(arrange,"Unlock All",#selector(EditorWindowController.unlockAll(_:))); arrange.addItem(.separator())
         item(arrange,"Bring Forward",#selector(EditorWindowController.bringForward(_:)))
         item(arrange,"Send Backward",#selector(EditorWindowController.sendBackward(_:)))
         item(arrange,"Edit Group",#selector(EditorWindowController.editSelectedGroup(_:)))
         item(arrange,"Finish Editing Group",#selector(EditorWindowController.finishGroupEditing(_:)))
         for (i,title) in ["Align Left","Align Center","Align Right","Align Top","Align Middle","Align Bottom","Distribute Horizontally","Distribute Vertically"].enumerated() { item(arrange,title,#selector(EditorWindowController.alignObjects(_:))); arrange.items.last?.tag=i }
+        let format=menu("Format")
+        item(format,"Object Appearance…",#selector(EditorWindowController.objectAppearance(_:)))
+        item(format,"Paragraph and Spacing…",#selector(EditorWindowController.showParagraphSettings(_:)))
+        item(format,"Configure Connector…",#selector(EditorWindowController.configureConnector(_:)))
+        format.addItem(.separator())
+        item(format,"Remove Image Background…",#selector(EditorWindowController.removeImageBackground(_:)))
+        item(format,"Restore Original Image",#selector(EditorWindowController.restoreImageBackground(_:)))
+        item(format,"Media Playback Settings…",#selector(EditorWindowController.mediaSettings(_:)))
         let present=menu("Present"); item(present,"Present from Current Slide",#selector(EditorWindowController.startPresentation(_:)),"p",[.command,.shift])
         item(present,"Rehearse Timings",#selector(EditorWindowController.rehearsePresentation(_:)))
         let window=menu("Window"); NSApp.windowsMenu=window; item(window,"Minimize",#selector(NSWindow.performMiniaturize(_:)),"m"); item(window,"Zoom",#selector(NSWindow.performZoom(_:)))
