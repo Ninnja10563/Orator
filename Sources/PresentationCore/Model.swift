@@ -34,6 +34,11 @@ public struct TextStyle: Codable, Equatable, Sendable {
     public var fontName = "Helvetica Neue"
     public var size: Double = 32
     public var bold = false; public var italic = false; public var underline = false
+    public var strikethrough: Bool? = nil
+    public var highlight: RGBA? = nil
+    public var tracking: Double? = nil
+    public var hyperlink: String? = nil
+    public var paragraph: ParagraphSettings? = nil
     public var alignment: TextAlignment = .left
     public var color: RGBA? = nil
     public var lineSpacing: Double = 4
@@ -78,6 +83,7 @@ public struct SlideObject: Codable, Equatable, Identifiable, Sendable {
     public var style = ObjectStyle()
     public var text = ""
     public var textStyle = TextStyle()
+    public var textRuns: [TextRun]? = nil
     public var shape: ShapeKind = .rectangle
     public var image: ImageContent? = nil
     public var table: TableContent? = nil
@@ -146,7 +152,7 @@ public struct Asset: Codable, Equatable, Identifiable, Sendable {
     public init(name: String, data: Data) { self.name=name; self.data=data }
 }
 public struct Presentation: Codable, Equatable, Sendable {
-    public var formatVersion = 1
+    public var formatVersion = 2
     public var id = UUID()
     public var title = "Untitled"
     public var width: Double = 1280; public var height: Double = 720

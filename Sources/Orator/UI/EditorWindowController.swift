@@ -119,6 +119,13 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
         for i in slide.objects.indices where canvas.selected.contains(slide.objects[i].id) && !slide.objects[i].locked { action(&slide.objects[i]) }
         commit(slide,name:name)
     }
+    func formatText(_ name: String, _ mutate: (inout TextStyle) -> Void) {
+        if canvas.formatTextSelection(name,mutate:mutate) { return }
+        mutateSelection(name) { object in
+            mutate(&object.textStyle)
+            if var runs=object.textRuns { for i in runs.indices { mutate(&runs[i].style) }; object.textRuns=runs }
+        }
+    }
     func textDidChange(_ notification: Notification) {
         guard !refreshing else { return }; var slide=currentSlide; slide.notes=notes.string; commit(slide,name:"Edit Speaker Notes")
     }

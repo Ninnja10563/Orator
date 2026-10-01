@@ -16,13 +16,13 @@ public enum PresentationFile {
     public static func decode(_ data: Data) throws -> Presentation {
         struct Header: Decodable { var formatVersion: Int }
         let header=try JSONDecoder().decode(Header.self,from:data)
-        guard header.formatVersion == 1 else { throw FormatError.unsupportedVersion(header.formatVersion) }
-        let deck=try JSONDecoder().decode(Presentation.self,from:data); try validate(deck); return deck
+        guard (1...2).contains(header.formatVersion) else { throw FormatError.unsupportedVersion(header.formatVersion) }
+        var deck=try JSONDecoder().decode(Presentation.self,from:data); deck.formatVersion=2; try validate(deck); return deck
     }
     public static func validate(_ deck: Presentation) throws {
         guard deck.width.isFinite, deck.height.isFinite, (100...16384).contains(deck.width), (100...16384).contains(deck.height) else { throw FormatError.invalid("invalid slide dimensions") }
         guard !deck.slides.isEmpty, deck.slides.count <= 10000 else { throw FormatError.invalid("invalid slide count") }
-        guard deck.formatVersion == 1 else { throw FormatError.unsupportedVersion(deck.formatVersion) }
+        guard deck.formatVersion == 2 else { throw FormatError.unsupportedVersion(deck.formatVersion) }
         func validColor(_ color: RGBA) -> Bool { [color.red,color.green,color.blue,color.alpha].allSatisfy { $0.isFinite && (0...1).contains($0) } }
         guard [deck.theme.background,deck.theme.foreground,deck.theme.accent].allSatisfy(validColor) else { throw FormatError.invalid("invalid theme colors") }
         for (id,asset) in deck.assets { guard id == asset.id, asset.data.count <= 100*1024*1024 else { throw FormatError.invalid("invalid asset identifier or size") } }
@@ -39,6 +39,7 @@ public enum PresentationFile {
                       o.textStyle.lineSpacing.isFinite, (0...10000).contains(o.textStyle.lineSpacing),
                       validColor(o.style.stroke), o.style.fill.map(validColor) ?? true, o.textStyle.color.map(validColor) ?? true else { throw FormatError.invalid("object style is outside supported bounds") }
                 if o.kind == .image && o.image == nil { throw FormatError.invalid("image object has no asset reference") }
+                if let runs=o.textRuns { try RichText.validate(runs,text:o.text) }
                 if let table=o.table {
                     guard !table.cells.isEmpty, table.cells.count <= 1000, let columns=table.cells.first?.count, (1...100).contains(columns), table.cells.allSatisfy({ $0.count == columns }) else { throw FormatError.invalid("invalid table dimensions") }
                 }

@@ -43,6 +43,9 @@ final class InspectorView: SurfaceView {
         textColor.target=self; textColor.action=#selector(changeTextColor); row("Text color",textColor)
         alignment.addItems(withTitles:TextAlignment.allCases.map(\.rawValue)); alignment.target=self; alignment.action=#selector(changeAlignment); row("Alignment",alignment)
         fit.addItems(withTitles:TextFit.allCases.map(\.rawValue)); fit.target=self; fit.action=#selector(changeFit); row("Text fit",fit)
+        button("Paragraph and Lists…",#selector(paragraphSettings))
+        button("Highlight Selection",#selector(highlightText))
+        button("Strikethrough",#selector(strikeText))
         heading("CONTENT")
         chart.addItems(withTitles:ChartKind.allCases.map(\.rawValue)); chart.target=self; chart.action=#selector(changeChart); row("Chart type",chart)
         button("Edit table / chart data…",#selector(editData))
@@ -118,6 +121,7 @@ final class InspectorView: SurfaceView {
             if key == "duration" { slide.transition.duration=min(10,max(0,value)) } else { slide.transition.advanceAfter=value > 0 ? min(86400,max(0.2,value)) : nil }
             editor.commit(slide,name:"Change Transition"); return
         }
+        if key == "size" { editor.formatText("Change Font Size") { $0.size=min(1000,max(1,value)) }; return }
         editor.mutateSelection("Format Object") { o in
             var f=o.frame
             switch key {
@@ -140,10 +144,10 @@ final class InspectorView: SurfaceView {
     @objc func changeTheme() { guard !updating, let editor=editor else { return }; editor.canvas.finishText(); editor.presentation.perform(.setTheme(Theme.all[theme.indexOfSelectedItem]),named:"Change Theme") }
     @objc func changeTransition() { guard !updating, let editor=editor else { return }; var slide=editor.currentSlide; slide.transition.kind=TransitionKind.allCases[transition.indexOfSelectedItem]; editor.commit(slide,name:"Change Transition") }
     @objc func changeFill() { editor?.mutateSelection("Change Fill") { $0.style.fill=RGBA(fill.color) } }
-    @objc func changeTextColor() { editor?.mutateSelection("Change Text Color") { $0.textStyle.color=RGBA(textColor.color) } }
-    @objc func changeFont() { editor?.mutateSelection("Change Font") { $0.textStyle.fontName=font.titleOfSelectedItem ?? "Helvetica Neue" } }
-    @objc func changeTraits() { editor?.mutateSelection("Format Text") { $0.textStyle.bold=bold.state == .on; $0.textStyle.italic=italic.state == .on; $0.textStyle.underline=underline.state == .on } }
-    @objc func changeAlignment() { editor?.mutateSelection("Align Text") { $0.textStyle.alignment=TextAlignment.allCases[alignment.indexOfSelectedItem] } }
+    @objc func changeTextColor() { editor?.formatText("Change Text Color") { $0.color=RGBA(textColor.color) } }
+    @objc func changeFont() { editor?.formatText("Change Font") { $0.fontName=font.titleOfSelectedItem ?? "Helvetica Neue" } }
+    @objc func changeTraits() { editor?.formatText("Format Text") { $0.bold=bold.state == .on; $0.italic=italic.state == .on; $0.underline=underline.state == .on } }
+    @objc func changeAlignment() { editor?.formatText("Align Text") { $0.alignment=TextAlignment.allCases[alignment.indexOfSelectedItem] } }
     @objc func changeFit() { editor?.mutateSelection("Change Text Fit") { $0.textStyle.fit=TextFit.allCases[fit.indexOfSelectedItem] } }
     @objc func changeChart() { editor?.mutateSelection("Change Chart Type") { $0.chart?.kind=ChartKind.allCases[chart.indexOfSelectedItem] } }
     @objc func editData() { editor?.editData(nil) }
@@ -162,6 +166,9 @@ final class InspectorView: SurfaceView {
         }
     }
     @objc func resetColors() { editor?.mutateSelection("Reset Theme Colors") { $0.style.fill=nil; $0.textStyle.color=nil } }
+    @objc func highlightText() { editor?.formatText("Highlight Text") { $0.highlight = $0.highlight == nil ? RGBA(1,0.9,0.3) : nil } }
+    @objc func strikeText() { editor?.formatText("Strikethrough") { $0.strikethrough = !($0.strikethrough ?? false) } }
+    @objc func paragraphSettings() { editor?.showParagraphSettings(nil) }
     @objc func front() { editor?.bringToFront(nil) }
     @objc func back() { editor?.sendToBack(nil) }
     @objc func lock() { editor?.toggleLock(nil) }

@@ -15,7 +15,16 @@ extension TextStyle {
     func attributes(theme: Theme, scale: Double = 1) -> [NSAttributedString.Key: Any] {
         let p=NSMutableParagraphStyle(); p.lineSpacing=lineSpacing
         switch alignment { case .left:p.alignment = .left; case .center:p.alignment = .center; case .right:p.alignment = .right; case .justified:p.alignment = .justified }
-        return [.font: NSFontManager.shared.convert(font,toSize:size*scale), .foregroundColor:(color ?? theme.foreground).nsColor, .paragraphStyle:p, .underlineStyle:underline ? NSUnderlineStyle.single.rawValue : 0]
+        if let options=paragraph {
+            p.paragraphSpacingBefore=options.before; p.paragraphSpacing=options.after
+            p.headIndent=options.indent; p.firstLineHeadIndent=options.firstLineIndent
+            if options.list != .none { p.textLists=(0...min(8,options.level)).map { _ in NSTextList(markerFormat:options.list == .numbered ? .decimal : .disc,options:0) } }
+        }
+        var attributes: [NSAttributedString.Key:Any] = [.font: NSFontManager.shared.convert(font,toSize:size*scale), .foregroundColor:(color ?? theme.foreground).nsColor, .paragraphStyle:p, .underlineStyle:underline ? NSUnderlineStyle.single.rawValue : 0, .strikethroughStyle:strikethrough == true ? NSUnderlineStyle.single.rawValue : 0, .kern:tracking ?? 0]
+        if let highlight=highlight { attributes[.backgroundColor]=highlight.nsColor }
+        if let link=hyperlink { attributes[.link]=link }
+        if color == nil { attributes[NSAttributedString.Key("OratorThemeForeground")]=true }
+        return attributes
     }
 }
 /// Shared drawing path for editing, thumbnails, PDF, and the audience window.
@@ -45,7 +54,7 @@ final class SlideRenderer {
         let r=o.frame.nsRect
         let transform=NSAffineTransform(); transform.translateX(by:r.midX,yBy:r.midY); transform.rotate(byDegrees:o.rotation); transform.translateX(by:-r.midX,yBy:-r.midY); transform.concat()
         switch o.kind {
-        case .text: drawText(o.text,style:o.textStyle,rect:r,theme:deck.theme)
+        case .text: drawRichText(o,rect:r,theme:deck.theme)
         case .shape:
             let path=shape(o.shape,in:r,radius:o.style.cornerRadius)
             (o.style.fill ?? deck.theme.accent).nsColor.setFill()
@@ -53,7 +62,7 @@ final class SlideRenderer {
             (o.style.strokeWidth > 0 ? o.style.stroke : (o.style.fill ?? deck.theme.accent)).nsColor.setStroke()
             path.lineWidth = o.style.strokeWidth > 0 ? o.style.strokeWidth : ((o.shape == .line || o.shape == .arrow) ? 3 : 0)
             if path.lineWidth > 0 { path.stroke() }
-            if !o.text.isEmpty { drawText(o.text,style:o.textStyle,rect:r.insetBy(dx:12,dy:10),theme:deck.theme) }
+            if !o.text.isEmpty { drawRichText(o,rect:r.insetBy(dx:12,dy:10),theme:deck.theme) }
         case .image:
             guard let content=o.image, let image=image(content.assetID,in:deck) else { return }
             r.clip()
@@ -79,6 +88,17 @@ final class SlideRenderer {
         case .chart: if let chart=o.chart { drawChart(chart,object:o,deck:deck) }
         case .group: for child in o.children { draw(object:child,deck:deck,inheritedOpacity:inheritedOpacity*o.opacity) }
         }
+    }
+    func drawRichText(_ object: SlideObject, rect: NSRect, theme: Theme) {
+        NSGraphicsContext.saveGraphicsState(); defer { NSGraphicsContext.restoreGraphicsState() }; rect.clip()
+        var value=NativeText.attributed(object,theme:theme)
+        if object.textStyle.fit == .shrink {
+            var factor=1.0
+            while factor > 0.25 && value.boundingRect(with:NSSize(width:rect.width,height:100000),options:[.usesLineFragmentOrigin,.usesFontLeading]).height > rect.height {
+                factor -= 0.025; value=NativeText.scaled(NativeText.attributed(object,theme:theme),factor:factor)
+            }
+        }
+        value.draw(with:rect,options:[.usesLineFragmentOrigin,.usesFontLeading])
     }
     func drawText(_ text: String, style: TextStyle, rect: NSRect, theme: Theme) {
         NSGraphicsContext.saveGraphicsState(); defer { NSGraphicsContext.restoreGraphicsState() }

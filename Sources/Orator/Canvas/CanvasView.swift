@@ -180,18 +180,39 @@ final class CanvasView: NSView, NSTextViewDelegate {
     func beginText(_ object: SlideObject) {
         guard !object.locked else { return }
         editingID=object.id
-        let view=InlineTextView(frame:viewRect(object.frame)); view.isRichText=false; view.drawsBackground=true; view.backgroundColor=(slide.background ?? deck.theme.background).nsColor
+        let view=InlineTextView(frame:viewRect(object.frame)); view.isRichText=true; view.drawsBackground=true; view.backgroundColor=(slide.background ?? deck.theme.background).nsColor
         view.textContainerInset=NSSize(width:0,height:0); view.textContainer?.lineFragmentPadding=0
-        view.string=object.text; view.font=NSFontManager.shared.convert(object.textStyle.font,toSize:object.textStyle.size*scale)
-        view.textColor=(object.textStyle.color ?? deck.theme.foreground).nsColor
+        view.setBoundsSize(NSSize(width:object.frame.width,height:object.frame.height))
+        view.textContainer?.containerSize=NSSize(width:object.frame.width,height:object.frame.height)
+        view.textStorage?.setAttributedString(NativeText.attributed(object,theme:deck.theme))
+        view.typingAttributes=object.textStyle.attributes(theme:deck.theme)
+        view.usesFontPanel=true; view.importsGraphics=false
         view.isVerticallyResizable=false; view.isHorizontallyResizable=false; view.autoresizingMask=[]
         view.delegate=self; view.allowsUndo=true
         view.setAccessibilityLabel("Edit \(object.name)")
         addSubview(view); textEditor=view; window?.makeFirstResponder(view); needsDisplay=true
     }
+    @discardableResult func formatTextSelection(_ name: String, mutate: (inout TextStyle) -> Void) -> Bool {
+        guard let view=textEditor, let storage=view.textStorage else { return false }
+        let selection=view.selectedRange()
+        let before=NSAttributedString(attributedString:storage)
+        if selection.length == 0 {
+            var style=NativeText.style(view.typingAttributes); mutate(&style)
+            view.typingAttributes=style.attributes(theme:deck.theme)
+        } else {
+            var replacements: [(NSRange,[NSAttributedString.Key:Any])]=[]
+            storage.enumerateAttributes(in:selection) { attrs,range,_ in
+                var style=NativeText.style(attrs); mutate(&style); replacements.append((range,style.attributes(theme:deck.theme)))
+            }
+            for (range,attributes) in replacements { storage.setAttributes(attributes,range:range) }
+            view.undoManager?.registerUndo(withTarget:view) { target in target.textStorage?.setAttributedString(before); target.didChangeText() }
+            view.undoManager?.setActionName(name); view.didChangeText()
+        }
+        window?.makeFirstResponder(view); view.setSelectedRange(selection); return true
+    }
     var pendingTextSlide: Slide? {
         guard let view=textEditor, let id=editingID, var changed=editor?.currentSlide, let i=changed.objects.firstIndex(where: { $0.id == id }) else { return nil }
-        changed.objects[i].text=view.string
+        NativeText.store(view.attributedString(),in:&changed.objects[i])
         if changed.objects[i].name == "Title" { changed.title=String(view.string.prefix(120)) }
         return changed
     }
@@ -204,7 +225,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
         guard let view=textEditor, let id=editingID else { return }
         var changed=editor?.currentSlide ?? Slide()
         if let i=changed.objects.firstIndex(where: { $0.id == id }) {
-            changed.objects[i].text=view.string
+            NativeText.store(view.attributedString(),in:&changed.objects[i])
             if changed.objects[i].name == "Title" { changed.title=String(view.string.prefix(120)) }
             if changed.objects[i].textStyle.fit == .expand {
                 let object=changed.objects[i]
