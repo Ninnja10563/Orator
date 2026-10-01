@@ -1,6 +1,6 @@
 # Orator
 
-A native macOS presentation editor built with Swift and AppKit, targeting Apple Silicon and macOS 14 or later. Version **0.1.0 — foundation preview**. No web runtime, cloud account or external AI service is required.
+A native macOS presentation editor built with Swift and AppKit for Apple Silicon and macOS 14 or later. **Development preview** — substantial editing and presentation workflows are implemented; this is not yet a production-certified replacement for PowerPoint or Keynote. No web runtime, cloud account or external AI service is required.
 
 ## Build and run
 
@@ -12,31 +12,43 @@ scripts/build-app.sh
 open build/Orator.app
 ```
 
-The build creates an arm64 application with an ad-hoc signature. Distribution signing and notarization are not configured. CI publishes a downloadable build artifact, not a production release.
+The build creates an arm64 application with a Retina icon and an ad-hoc signature. Distribution signing and notarization are not configured. Downloadable app archives and visual test captures are available from successful [macOS workflow runs](https://github.com/Ninnja10563/Orator/actions/workflows/macos.yml).
 
-## Available workflows
+## Editing
 
-- Multiple native documents; versioned `.orator` files; standard save, autosave, undo and redo. Separate recovery snapshots reopen as clearly labeled copies.
-- Slide layouts, sections, multi-selection in the navigator, drag reorder, duplication, deletion, skip and clipboard exchange between documents.
-- Direct AppKit canvas: selection, marquee, move, resize, rotate, keyboard nudging, snapping with Option override, group/ungroup, layers, hide/lock, align and distribute.
-- Inline plain-text editing, box-level typography, theme colors and explicit overrides.
-- Shapes, images with retained originals, numeric non-destructive cropping, flip and fit/fill.
-- Tables and six basic chart renderers with tab-separated data editing.
-- Three themes, speaker notes, ruler-dragged guides, trackpad panning, pinch/percentage/selection zoom, resizable/hideable panels.
-- Fullscreen presenting, next/previous, black screen, pause, laser pointer, fade/push transitions, timed advance and a separate presenter display.
-- Vector PDF export; genuine zipped Office Open XML PPTX import/export with an explicit compatibility report.
+- Native multi-document workspace with resizable slide navigator, canvas, inspector and speaker notes; system light/dark appearance and fullscreen editing.
+- Slide layouts, sections, multiple selection, drag reorder, duplication, deletion, skip and slide/object clipboard exchange.
+- Precise AppKit canvas with marquee selection, move/resize/rotation handles, keyboard nudging, snapping with Option override, equal spacing/size guides, ruler guides, alignment and distribution.
+- Nested groups with direct group editing, layers, locking, hiding and Z-order commands. Attached straight, elbow and curved connectors follow their objects.
+- Inline attributed text with fonts, selection formatting, colors, highlight, paragraph settings, lists, text fitting and undo/redo.
+- Shape library with fill, gradient, border pattern and shadow controls. Original image assets, visual crop handles, aspect ratios, fit/fill, flips, masks and local Vision background removal with original restoration.
+- Native table editor with rows/columns, dimensions, merged cells, fills, borders, padding and alignment; direct canvas cell editing.
+- Six editable chart types with multiple series, a spreadsheet data editor, chart colors, titles, legends, axes and labels.
+- Themes, editable masters and custom layouts, inherited placeholders, linked typography and intentional local overrides.
+- Slide/object comment threads with replies and resolve/reopen controls.
 
-## Compatibility and current limits
+## Presenting
 
-PPTX exports editable text, shapes, tables, pictures and speaker notes. The app flattens charts and groups to images. Imports direct slide objects and notes; master/layout inheritance, rich text runs, charts, media, animations and hyperlinks are not preserved. Keep source PPTX files. Cross-application visual fidelity is not yet certified in Microsoft PowerPoint.
+Fullscreen audience output and a separate presenter display with current/next slides, notes, time and navigation. Fade, Dissolve, Push, Wipe, Slide, Zoom and **Continuity** object-matching transitions work during playback. An animation timeline supports entrance, emphasis, exit, click grouping and editable motion paths.
 
-Rich text, masters, animation timelines, audio/video, advanced table operations, visual crop handles, real-time collaboration and full crash-recovery fault-injection verification remain planned. Large-deck performance and accessibility require interactive macOS acceptance testing. Single-display presentation shows the audience view; presenter notes require a second display.
+Embedded audio/video uses AVFoundation, with preview, playback settings, trim boundaries, looping and volume. Presenter tools include black screen, pause, jump to slide, laser pointer, temporary pen/highlighter annotations and rehearsal timings.
 
-## Verification
+## Documents and exchange
 
-The macOS workflow builds the arm64 app, runs model/geometry/OOXML/recovery tests (including a 500-slide file), launches the bundled app through its document registration, saves and reopens a native document, and exercises canvas drag/undo, inline text saving, panel visibility and presentation controls. Exported PPTX is opened independently with python-pptx. Light/dark workspace captures and the app archive are CI artifacts.
+Versioned `.orator` documents preserve the complete native model. NSDocument supplies safe saving and autosave; independent recovery snapshots reopen as labeled copies. Reversible commands group continuous drags into one undo action.
 
-This does not replace hands-on macOS, multiple-display, VoiceOver, or Microsoft PowerPoint acceptance testing.
+- Vector PDF export, paginated speaker-note PDFs and native printing.
+- Genuine zipped Office Open XML PPTX import/export with editable rich text, shapes, images, nested groups, connectors, tables, six chart types, embedded chart workbooks, media, notes and compatible transitions.
+- PPTX import resolves master/layout appearances into editable slide content. Export reports unsupported conversions instead of silently claiming lossless compatibility.
+- Google Slides exchange is through PPTX import/export; no Google account or service dependency is built into Orator.
+
+**PPTX limits:** master/layout relationships and object animations are not retained across exchange. Continuity exports as Fade. Media playback settings, unusual shapes/effects and advanced third-party content may need adjustment. Comments are currently native-only. Keep original PPTX files. Visual fidelity has not been certified in the Microsoft PowerPoint GUI.
+
+## Verification and remaining work
+
+The [macOS workflow](.github/workflows/macos.yml) builds the arm64 app, runs core regression tests, launches the bundled app, exercises native editing/undo/save/presentation/media behavior, and captures light/dark workspaces and content editors. Independent python-pptx checks and Microsoft's Open XML SDK validate exported presentations and embedded chart workbooks. Tests include an independent PowerPoint fixture, theme/layout inheritance, nested groups, rich text, malformed input, recovery and a 500-slide document.
+
+Hands-on VoiceOver, multiple-display, Vision inference and large-deck performance acceptance remain necessary. Real-time collaboration, curved motion paths, full OOXML animation fidelity and production signing/notarization are not complete. See the [implementation status and acceptance plan](docs/DEVELOPMENT.md) for precise boundaries.
 
 ## Editing shortcuts
 
@@ -50,9 +62,13 @@ This does not replace hands-on macOS, multiple-display, VoiceOver, or Microsoft 
 | Disable snapping for a drag | Hold Option |
 | Constrain resize/rotation | Hold Shift |
 | Group / ungroup | Command–Option–G / add Shift |
+| Edit / leave a group | Double-click group / Escape |
 | Duplicate objects | Command–D |
 | Fit slide | Command–0 |
+| Print | Command–P |
 | Present | Command–Shift–P |
-| Presentation controls | Arrows, Space, B, P, L, Escape |
+| Presentation navigation | Arrows, Space, J, Escape |
+| Black / pause / laser | B / P / L |
+| Pen / highlighter / erase | D / H / E |
 
-Architecture, the original repository audit, and the remaining milestones are in [the development plan](docs/DEVELOPMENT.md). The UI follows the supplied unslop-ui design rules: native system controls, neutral surfaces, compact spacing and no decorative effects.
+UI work follows the supplied unslop-ui skill: native system controls, neutral surfaces, compact spacing and restrained feedback.

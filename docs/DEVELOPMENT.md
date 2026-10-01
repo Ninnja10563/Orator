@@ -1,25 +1,51 @@
-# Orator development plan
+# Orator implementation and acceptance plan
 
 ## Repository audit — 1 October 2026
 
-The original repository contained only the MIT license, one initial commit, no tags, no releases, no source, and no build or test configuration. There was no pre-existing functionality to preserve or run. The implementation workspace is Linux arm64 without Swift or Xcode; native verification runs in macOS CI.
+The original repository contained only the MIT license, one initial commit, no tags, no releases, no source, and no build or test configuration. There was no pre-existing application to preserve or run. The implementation workspace is Linux arm64 without Swift or Xcode; native verification runs on macOS CI. No production release has been certified.
 
-## Implementation boundaries
+## Architecture
 
-- `PresentationCore`: Codable value model, stable UUIDs, original asset bytes, theme-linked colors, nested groups, geometry, reversible serializable edits, format validation and Office Open XML adapter. No AppKit dependency.
-- `App`: AppKit document lifecycle, NSDocument safe save/autosave and standard undo registration. Native `.orator` documents are versioned JSON with embedded assets.
-- `Canvas`: AppKit mouse/key events, drag previews committed once at mouse-up, selection separate from persisted state, rendering shared with output. Images and slide thumbnails are cached.
-- `UI`: native menus, customizable toolbar, split workspace, slide navigator, formatting controls, data editors.
-- `Presenter`: audience window, separate display console, transitions and timed advancement.
-- `ImportExport`: vector PDF and bounded PPTX interoperability. Original documents are never overwritten on import.
+| Area | Responsibility |
+|---|---|
+| PresentationCore | Codable value model, stable UUIDs, geometry, styles, tables, charts, masters, connectors, animation evaluation, reversible serializable edits, validation and OOXML adapters |
+| App | AppKit NSDocument lifecycle, save/autosave, command history, independent recovery snapshots and native integration checks |
+| Canvas | Mouse/key interaction, selection, transient drag previews, text editing and shared rendering |
+| UI | Native menus, toolbar, split workspace, navigator, inspector, guide/master/group editing |
+| Text, Images, Shapes, Tables, Charts, Media | Focused content editors and native rendering/processing/playback adapters |
+| Slides | Asynchronous thumbnail scheduling and bounded caches |
+| Animation, Presenter | Timeline, playback scheduling, audience/presenter windows, transitions, annotations and rehearsal |
+| ImportExport | Vector slide/notes PDF, native printing and Office document exchange |
+| Comments | Offline comment threads, replies and resolution |
 
-## Next milestones, in order
+The native format is versioned JSON with original assets embedded as data. Version 1 is migrated to version 2 on decoding; unsupported future versions are rejected. Rendering, selection and tool-window state are separate from serialized content. Continuous drags commit a single reversible command. Inline text has its own undo manager; saving includes active text before focus changes. Master and group edits resolve to their owning document commands.
 
-1. **Reliability and accessibility:** interactive macOS QA, VoiceOver testing, inspector mixed values, large-deck background thumbnail scheduling, recovery fault injection, UI automation.
-2. **Document depth:** attributed text runs, paragraph/list editing, masters and inherited placeholders, section collapsing, nested group isolation, connectors and editable guide properties.
-3. **Content tools:** visual image crop mode, masks, Vision processing service, direct table cell editing and merges, full chart series/axes editor, AVFoundation audio/video.
-4. **Motion and presentation:** animation data/engine/timeline, object identity interpolation (working name: Continuity), motion paths, presenter jump/rehearsal/ink tools.
-5. **Interoperability:** OOXML schema validation and PowerPoint/Keynote fixture corpus; master/theme inheritance, mixed text runs, media, native charts and transition fidelity. Optional Google Slides exchange through PPTX, without a service dependency.
-6. **Collaboration:** durable operation journal, revisions and conflict semantics before any network transport, comment editor/replies/presence. No collaboration UI until functional.
+Large image/media documents still incur JSON encoding and embedded-data overhead. A future package format should preserve stable asset IDs and migrate existing files, with measured save latency and recovery fault-injection tests before adoption.
 
-This is a foundation preview, not a claim of parity with Keynote or PowerPoint. Features must graduate from model support to UI and tested behavior before being described as implemented.
+## Implemented and covered by automated checks
+
+- Structured slides, groups, content styles, assets, comments, masters/layouts and optional animation/media fields.
+- Object selection/transforms, slide operations, geometry/snapping, nested group editing and clipboard undo.
+- Attributed text persistence and selection-format undo/redo; active text serialization inside groups.
+- Table cell editing/undo, dimensions/merges, multi-series charts and non-destructive crop geometry.
+- Master layout editing, inherited geometry/typography and local overrides.
+- Animation scheduling/evaluation, Continuity matching, presenter input and pause/advance behavior.
+- Real AVFoundation audio playback, pause/resume and cleanup using a generated audio fixture.
+- Native document reopening, independent recovery snapshots and a 500-slide serialization regression.
+- PDF speaker-note pagination and native print-operation creation.
+- PPTX fixtures from an independent producer; editable tables/charts/groups, font units, theme/layout inheritance, attached connectors and transition settings.
+- Export validation with python-pptx and Microsoft's Open XML SDK, including embedded XLSX chart data.
+- Native app launches and visual captures of light/dark workspaces and table/chart/crop editors.
+
+CI artifacts provide the exact app archive and captures associated with each commit. Schema validity is evidence of structural compatibility, not a guarantee of identical rendering in PowerPoint.
+
+## Remaining acceptance and engineering work
+
+1. **Interactive macOS acceptance:** VoiceOver navigation and announcements, keyboard-only authoring, real trackpad interactions, multiple displays, native printing on actual printers, and foreground-removal inference on representative photographs.
+2. **Scale and reliability:** measured frame/interaction latency on M1 through newer chips; stress documents with many large assets; memory-pressure tests; kill/power-loss recovery fault injection and save migration tests.
+3. **Text and content depth:** list rendering and continuation acceptance, richer per-cell text, media within transformed groups, connector endpoint dragging, advanced shape adjustments and curved motion paths.
+4. **Interoperability:** GUI round trips against PowerPoint/Keynote and Google Slides; fixture corpus expansion; retained master relationships, OOXML object animations, comments and advanced media settings. Keep explicit compatibility reporting.
+5. **Collaboration:** current stable IDs, serializable operations and offline comments are foundations only. Durable revision journals, conflict semantics, presence and a synchronization transport remain unimplemented. There is no simulated collaboration UI.
+6. **Distribution:** production signing, notarization, update policy, installer/release acceptance and support documentation. Ad-hoc CI builds are development previews.
+
+The project must not be described as a finished professional-suite replacement until these acceptance boundaries have been closed with evidence.
