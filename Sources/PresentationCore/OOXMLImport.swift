@@ -45,7 +45,7 @@ extension PowerPoint {
         var importedAssets: [String:Asset]=[:]
         func loadAsset(_ path: String) throws -> Asset { if let cached=importedAssets[path] { return cached }; let value=Asset(name:URL(fileURLWithPath:path).lastPathComponent,data:try read(path)); importedAssets[path]=value; return value }
         if let size=root.first("sldSz") { deck.width=size.number("cx",default:12192000)/9525; deck.height=size.number("cy",default:6858000)/9525 }
-        var warnings=Set(["Imported text, shapes, pictures, tables, charts, groups, media, notes and supported transitions remain editable. Master and layout appearances are resolved into slide content; master relationships, comments and object animations are not retained. Media playback settings and unsupported effects may need adjustment. Keep the original PowerPoint file."])
+        var warnings=Set(["Imported text, shapes, pictures, tables, charts, groups, media, notes and supported transitions remain editable. Master and layout appearances are resolved into slide content; master relationships and comments are not retained. Media playback settings and unsupported effects may need adjustment. Keep the original PowerPoint file."])
         for ref in root.descendants("sldId") {
             guard let path=rels[ref.attr("r:id")] else { throw FormatError.invalid("missing slide relationship") }
             let source=try document(path), links=try relations(path), textLinks=try relations(path,includeHyperlinks:true)
@@ -141,6 +141,9 @@ extension PowerPoint {
                     connect(&objects[i].children)
                 }
             }; connect(&slide.objects)
+            let animationImport=readAnimations(source,ids:shapeIDs,objects:slide.objects,width:deck.width,height:deck.height)
+            slide.animations=animationImport.0.isEmpty ? nil : animationImport.0
+            if animationImport.1 { warnings.insert("Some PowerPoint animation behaviors are unsupported or approximated. Review imported timing and effects.") }
             if let notesPath=links.values.first(where: { $0.contains("notesSlides/") }) {
                 let notes=try document(notesPath)
                 slide.notes=notes.descendants("sp").filter { $0.first("ph")?.attr("type") == "body" }.flatMap { $0.descendants("p") }.map { $0.descendants("t").map { $0.stringValue ?? "" }.joined() }.joined(separator:"\n")

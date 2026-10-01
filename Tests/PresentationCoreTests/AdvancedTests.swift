@@ -232,4 +232,17 @@ extension AdvancedTests {
         animation.curvedPath=false
         XCTAssertNotEqual(curved,AnimationEngine.pathPosition(animation,progress:0.25))
     }
+    func testOfficeAnimationBehaviorsAndClickTiming() throws {
+        var deck=Presentation(); let object=deck.slides[0].objects[0]
+        deck.slides[0].animations=AnimationEffect.allCases.enumerated().map { index,effect in
+            var value=ObjectAnimation(objectID:object.id,effect:effect); value.start=AnimationStart.allCases[index%3]; value.delay=0.125; value.duration=0.8; value.direction = .down; value.path=[Point(object.frame.midX,object.frame.midY),Point(700,500)]; return value
+        }
+        let url=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".pptx"); defer { try? FileManager.default.removeItem(at:url) }
+        _=try PowerPoint.export(deck,to:url); let imported=try PowerPoint.importDeck(from:url).deck.slides[0]
+        XCTAssertEqual(imported.animations?.count,AnimationEffect.allCases.count)
+        for (original,copy) in zip(deck.slides[0].animations!,imported.animations ?? []) {
+            XCTAssertEqual(original.effect,copy.effect); XCTAssertEqual(original.start,copy.start); XCTAssertEqual(original.delay,copy.delay,accuracy:0.001); XCTAssertEqual(original.duration,copy.duration,accuracy:0.001)
+        }
+        XCTAssertEqual(imported.animations?.last?.path.last,Point(700,500))
+    }
 }
