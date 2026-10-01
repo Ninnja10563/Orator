@@ -31,6 +31,7 @@ public enum PowerPoint {
         }
         var overrides="", slideIDs="", presentationRels="", warnings=Set<String>()
         var mediaTypes: [String:String]=[:]
+        let authors=commentAuthors(deck); var commentCounts: [Int:Int]=[:]
         func override(_ part: String,_ type: String) { overrides += "<Override PartName=\"/\(part)\" ContentType=\"application/vnd.openxmlformats-officedocument.\(type)+xml\"/>" }
         override("ppt/presentation.xml","presentationml.presentation.main")
         override("ppt/slideMasters/slideMaster1.xml","presentationml.slideMaster")
@@ -120,10 +121,17 @@ public enum PowerPoint {
                 try write("ppt/notesSlides/_rels/notesSlide\(n).xml.rels",relationships(relationship("rId1","slide","../slides/slide\(n).xml")))
                 override("ppt/notesSlides/notesSlide\(n).xml","presentationml.notesSlide")
             }
+            if !slide.comments.isEmpty {
+                let path="ppt/comments/comment\(n).xml"
+                try write(path,commentsXML(slide,authors:authors,counts:&commentCounts,ids:numericIDs)); override(path,"presentationml.comments")
+                rels += relationship("rIdComments","comments","../comments/comment\(n).xml")
+                if slide.comments.contains(where: { $0.resolved || $0.objectID != nil }) { warnings.insert("Comment text, authors and replies export to PowerPoint. Resolution state and object anchors are preserved as Orator metadata; other applications may display ordinary slide comments.") }
+            }
             try write("ppt/slides/_rels/slide\(n).xml.rels",relationships(rels))
             slideIDs += "<p:sldId id=\"\(256+n)\" r:id=\"rId\(n)\"/>"; presentationRels += relationship("rId\(n)","slide","slides/slide\(n).xml")
             override("ppt/slides/slide\(n).xml","presentationml.slide")
         }
+        if !authors.isEmpty { try write("ppt/commentAuthors.xml",commentAuthorsXML(authors,counts:commentCounts)); override("ppt/commentAuthors.xml","presentationml.commentAuthors"); presentationRels += relationship("rIdCommentAuthors","commentAuthors","commentAuthors.xml") }
         presentationRels += relationship("rIdMaster","slideMaster","slideMasters/slideMaster1.xml")
         try write("ppt/presentation.xml","<p:presentation xmlns:a=\"\(a)\" xmlns:r=\"\(r)\" xmlns:p=\"\(p)\"><p:sldMasterIdLst><p:sldMasterId id=\"2147483648\" r:id=\"rIdMaster\"/></p:sldMasterIdLst><p:sldIdLst>\(slideIDs)</p:sldIdLst><p:sldSz cx=\"\(emu(deck.width))\" cy=\"\(emu(deck.height))\"/><p:notesSz cx=\"6858000\" cy=\"9144000\"/></p:presentation>")
         try write("ppt/_rels/presentation.xml.rels",relationships(presentationRels))

@@ -31,7 +31,7 @@ final class CommentsPanel: NSWindowController, NSTableViewDataSource, NSTableVie
     func showDetail() {
         guard let i=selection else { detail.string="Select a discussion to read it. Comments are saved in this presentation."; return }
         let c=comments[i]; let target=c.objectID.flatMap { id in slide?.objects.first { $0.id == id }?.name } ?? "Slide"
-        detail.string="\(target) · \(c.author)\n\n\(c.text)"+(c.replies.isEmpty ? "" : "\n\n"+c.replies.joined(separator:"\n\n"))
+        detail.string="\(target) · \(c.author)\n\n\(c.text)"+(c.replies.isEmpty ? "" : "\n\n"+c.messages.map { $0.author.isEmpty ? $0.text : $0.author+": "+$0.text }.joined(separator:"\n\n"))
     }
     func refresh() { let row=table.selectedRow; table.reloadData(); if comments.indices.contains(row) { table.selectRowIndexes(IndexSet(integer:row),byExtendingSelection:false) }; showDetail() }
     func change(_ name: String,_ edit: (inout Slide) -> Void) { guard var slide=slide else { return }; edit(&slide); editor?.presentation.perform(.replaceSlide(slide),named:name); refresh() }

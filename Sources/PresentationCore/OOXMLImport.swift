@@ -41,11 +41,13 @@ extension PowerPoint {
             }; return result
         }
         let root=try document("ppt/presentation.xml"), rels=try relations("ppt/presentation.xml")
+        var authors: [String:String]=[:]
+        if let path=rels.values.first(where: { $0.contains("commentAuthors") }) { for author in try document(path).descendants("cmAuthor") { authors[author.attr("id")]=author.attr("name") } }
         var deck=Presentation(); deck.slides=[]; deck.title=archive.deletingPathExtension().lastPathComponent
         var importedAssets: [String:Asset]=[:]
         func loadAsset(_ path: String) throws -> Asset { if let cached=importedAssets[path] { return cached }; let value=Asset(name:URL(fileURLWithPath:path).lastPathComponent,data:try read(path)); importedAssets[path]=value; return value }
         if let size=root.first("sldSz") { deck.width=size.number("cx",default:12192000)/9525; deck.height=size.number("cy",default:6858000)/9525 }
-        var warnings=Set(["Imported text, shapes, pictures, tables, charts, groups, media, notes and supported transitions remain editable. Master and layout appearances are resolved into slide content; master relationships and comments are not retained. Media playback settings and unsupported effects may need adjustment. Keep the original PowerPoint file."])
+        var warnings=Set(["Imported text, shapes, pictures, tables, charts, groups, media, notes and supported transitions remain editable. Master and layout appearances are resolved into slide content; master relationships are not retained. Media playback settings and unsupported effects may need adjustment. Keep the original PowerPoint file."])
         for ref in root.descendants("sldId") {
             guard let path=rels[ref.attr("r:id")] else { throw FormatError.invalid("missing slide relationship") }
             let source=try document(path), links=try relations(path), textLinks=try relations(path,includeHyperlinks:true)
@@ -141,6 +143,7 @@ extension PowerPoint {
                     connect(&objects[i].children)
                 }
             }; connect(&slide.objects)
+            if let commentsPath=links.values.first(where: { $0.contains("comments/") }) { slide.comments=readComments(try document(commentsPath),authors:authors,ids:shapeIDs) }
             let animationImport=readAnimations(source,ids:shapeIDs,objects:slide.objects,width:deck.width,height:deck.height)
             slide.animations=animationImport.0.isEmpty ? nil : animationImport.0
             if animationImport.1 { warnings.insert("Some PowerPoint animation behaviors are unsupported or approximated. Review imported timing and effects.") }

@@ -245,4 +245,13 @@ extension AdvancedTests {
         }
         XCTAssertEqual(imported.animations?.last?.path.last,Point(700,500))
     }
+    func testPowerPointCommentThreadsAndAuthors() throws {
+        var deck=Presentation(), comment=Comment(text:"Review this title",author:"Alex",objectID:nil)
+        comment.objectID=deck.slides[0].objects[0].id; comment.resolved=true; comment.addReply("Updated",author:"Sam"); deck.slides[0].comments=[comment]
+        let url=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".pptx"); defer { try? FileManager.default.removeItem(at:url) }
+        _=try PowerPoint.export(deck,to:url); let slide=try PowerPoint.importDeck(from:url).deck.slides[0]
+        XCTAssertEqual(slide.comments.count,1); XCTAssertEqual(slide.comments[0].text,comment.text); XCTAssertEqual(slide.comments[0].author,"Alex")
+        XCTAssertEqual(slide.comments[0].messages.first?.author,"Sam"); XCTAssertEqual(slide.comments[0].messages.first?.text,"Updated")
+        XCTAssertTrue(slide.comments[0].resolved); XCTAssertEqual(slide.comments[0].objectID,slide.objects[0].id)
+    }
 }

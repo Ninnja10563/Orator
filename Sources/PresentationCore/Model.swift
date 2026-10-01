@@ -162,6 +162,8 @@ public struct Transition: Codable, Equatable, Sendable {
 public struct Comment: Codable, Equatable, Identifiable, Sendable {
     public var id = UUID(); public var objectID: UUID?; public var author: String; public var text: String
     public var resolved = false; public var replies: [String] = []
+    public var createdAt: Date? = Date()
+    public var replyDetails: [CommentReply]? = nil
     public init(text: String, author: String, objectID: UUID? = nil) { self.text=text; self.author=author; self.objectID=objectID }
 }
 public struct Guide: Codable, Equatable, Sendable {
