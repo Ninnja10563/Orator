@@ -4,6 +4,7 @@
 <key>CFBundleName</key><string>Orator</string>
 <key>CFBundleDisplayName</key><string>Orator</string>
 <key>CFBundleIdentifier</key><string>app.orator.mac</string>
+<key>CFBundleIconFile</key><string>Orator</string>
 <key>CFBundleExecutable</key><string>Orator</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>0.1.0</string>
