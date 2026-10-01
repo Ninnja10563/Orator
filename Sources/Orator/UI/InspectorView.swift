@@ -11,7 +11,8 @@ final class InspectorView: SurfaceView {
     private var sections: [String:[NSView]]=[:]
     private var labeledViews: [String:NSView]=[:]
     private let fill=NSColorWell(), textColor=NSColorWell()
-    private let layers=NSPopUpButton()
+    private let layers=NSPopUpButton(), direction=NSPopUpButton()
+    private let advanceClick=NSButton(checkboxWithTitle:"Advance on click",target:nil,action:nil)
     private let theme=NSPopUpButton(), transition=NSPopUpButton(), font=NSPopUpButton(), alignment=NSPopUpButton(), chart=NSPopUpButton(), fit=NSPopUpButton()
     private let bold=NSButton(checkboxWithTitle:"Bold",target:nil,action:nil), italic=NSButton(checkboxWithTitle:"Italic",target:nil,action:nil), underline=NSButton(checkboxWithTitle:"Underline",target:nil,action:nil)
     override init(frame: NSRect) {
@@ -31,6 +32,8 @@ final class InspectorView: SurfaceView {
         heading("PRESENTATION")
         theme.addItems(withTitles:Theme.all.map(\.name)); theme.target=self; theme.action=#selector(changeTheme); row("Theme",theme)
         transition.addItems(withTitles:TransitionKind.allCases.map(\.displayName)); transition.target=self; transition.action=#selector(changeTransition); row("Transition",transition)
+        direction.addItems(withTitles:MotionDirection.allCases.map(\.displayName)); direction.target=self; direction.action=#selector(changeDirection); row("Direction",direction)
+        advanceClick.target=self; advanceClick.action=#selector(changeAdvanceClick); add(advanceClick)
         field("Duration",key:"duration"); field("Advance (s)",key:"advance")
         heading("ARRANGE")
         for (title,key) in [("Name","name"),("X","x"),("Y","y"),("Width","width"),("Height","height"),("Rotation","rotation"),("Opacity %","opacity")] { field(title,key:key) }
@@ -103,6 +106,7 @@ final class InspectorView: SurfaceView {
         }
         fields["slideTitle"]?.stringValue=editor.currentSlide.title; fields["section"]?.stringValue=editor.currentSlide.section
         theme.selectItem(withTitle:editor.presentation.deck.theme.name); transition.selectItem(withTitle:editor.currentSlide.transition.kind.displayName)
+        direction.selectItem(withTitle:(editor.currentSlide.transition.direction ?? .left).displayName); advanceClick.state=editor.currentSlide.transition.advanceOnClick == false ? .off : .on
         fields["duration"]?.doubleValue=editor.currentSlide.transition.duration; fields["advance"]?.doubleValue=editor.currentSlide.transition.advanceAfter ?? 0
         for (key,field) in fields where !["duration","advance","slideTitle","section"].contains(key) { field.isEnabled=object != nil; if object == nil { field.stringValue="—" } }
         guard let o=object else { return }
@@ -149,6 +153,8 @@ final class InspectorView: SurfaceView {
     @objc func visibility() { editor?.toggleVisibility(nil) }
     @objc func changeTheme() { guard !updating, let editor=editor else { return }; editor.canvas.finishText(); editor.presentation.perform(.setTheme(Theme.all[theme.indexOfSelectedItem]),named:"Change Theme") }
     @objc func changeTransition() { guard !updating, let editor=editor else { return }; var slide=editor.currentSlide; slide.transition.kind=TransitionKind.allCases[transition.indexOfSelectedItem]; editor.commit(slide,name:"Change Transition") }
+    @objc func changeDirection() { guard !updating, let editor=editor else { return }; var slide=editor.currentSlide; slide.transition.direction=MotionDirection.allCases[direction.indexOfSelectedItem]; editor.commit(slide,name:"Transition Direction") }
+    @objc func changeAdvanceClick() { guard !updating, let editor=editor else { return }; var slide=editor.currentSlide; slide.transition.advanceOnClick=advanceClick.state == .on; editor.commit(slide,name:"Advance on Click") }
     @objc func changeFill() { editor?.mutateSelection("Change Fill") { $0.style.fill=RGBA(fill.color) } }
     @objc func changeTextColor() { editor?.formatText("Change Text Color") { $0.color=RGBA(textColor.color) } }
     @objc func changeFont() { editor?.formatText("Change Font") { $0.fontName=font.titleOfSelectedItem ?? "Helvetica Neue" } }

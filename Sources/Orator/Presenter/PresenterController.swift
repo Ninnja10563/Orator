@@ -15,6 +15,7 @@ final class AudienceView: NSView {
     var wipeProgress: Double=1
     var wipeDirection: MotionDirection = .left
     var onKey: ((UInt16,String) -> Void)?
+    var onClick: (() -> Void)?
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
     override func draw(_ dirtyRect: NSRect) {
@@ -51,7 +52,7 @@ final class AudienceView: NSView {
     }
     override func keyDown(with event: NSEvent) { onKey?(event.keyCode,event.charactersIgnoringModifiers ?? "") }
     override func mouseDown(with event: NSEvent) {
-        if inkTool == .none { onKey?(124,"") }
+        if inkTool == .none { onClick?() }
         else { strokes.append(([convert(event.locationInWindow,from:nil)],inkTool == .highlighter)); needsDisplay=true }
     }
     override func mouseDragged(with event: NSEvent) {
@@ -111,6 +112,7 @@ final class PresenterController: NSObject, NSWindowDelegate {
         let window=AudienceWindow(contentRect:screen.frame,styleMask:.borderless,backing:.buffered,defer:false,screen:screen)
         window.level = .normal; window.backgroundColor = .black; window.isReleasedWhenClosed=false; window.delegate=self; window.acceptsMouseMovedEvents=true
         audience.frame=NSRect(origin:.zero,size:screen.frame.size); audience.autoresizingMask=[.width,.height]; audience.wantsLayer=true; audience.deck=deck; audience.index=index
+        audience.onClick = { [weak self] in self?.advanceByClick() }
         audience.onKey = { [weak self] code,characters in self?.key(code,characters) }; window.contentView=audience
         annotations.frame=audience.bounds; audience.annotationOverlay=annotations; audience.addSubview(annotations)
         audienceWindow=window; window.makeKeyAndOrderFront(nil); window.makeFirstResponder(audience)
@@ -141,9 +143,13 @@ final class PresenterController: NSObject, NSWindowDelegate {
             if characters.lowercased() == "b" { black() }; if characters.lowercased() == "p" { pause() }; if characters.lowercased() == "l" { audience.laser.toggle(); audience.needsDisplay=true }
         }
     }
+    func advanceByClick() {
+        let clicks=AnimationEngine.schedule(deck.slides[index].animations ?? []).map(\.click).max() ?? 0
+        if animationClick < clicks || deck.slides[index].transition.advanceOnClick != false { next() }
+    }
     @objc func next() {
         let clicks=AnimationEngine.schedule(deck.slides[index].animations ?? []).map(\.click).max() ?? 0
-        if animationClick < clicks { animationClick += 1; animationStarted=Date(); tick(); return }
+        if animationClick < clicks { animationClick += 1; animationStarted=Date(); visualTimer?.fireDate=Date(); tick(); return }
         navigate(1)
     }
     @objc func previous() { navigate(-1) }
@@ -164,13 +170,13 @@ final class PresenterController: NSObject, NSWindowDelegate {
     }
     func showSlide(_ next: Int,delta: Int) {
         guard next != index else { return }
-        recordTime(); slideStarted=Date(); if paused { pausedAt=Date() }
+        recordTime(); slideStarted=Date(); if paused { started=started.addingTimeInterval(Date().timeIntervalSince(pausedAt ?? Date())); pausedAt=Date() }
         audience.strokes=[]
         let transition=deck.slides[next].transition
-        transitionFrom=deck.resolved(deck.slides[index]); transitionStarted=Date(); transitionDuration=transition.duration; transitionKind=transition.kind
+        transitionFrom=deck.resolved(audience.playbackSlide ?? deck.slides[index]); transitionStarted=Date(); transitionDuration=transition.duration; transitionKind=transition.kind
         animationClick=0; animationStarted=Date()
         if transition.kind != .none && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
-            let animation=CATransition(); animation.type=[TransitionKind.fade,.dissolve].contains(transition.kind) ? .fade : .push
+            let animation=CATransition(); animation.type=[TransitionKind.fade,.dissolve].contains(transition.kind) ? .fade : transition.kind == .slide ? .moveIn : .push
             switch transition.direction ?? (delta > 0 ? .left : .right) { case .left:animation.subtype = .fromRight; case .right:animation.subtype = .fromLeft; case .up:animation.subtype = .fromTop; case .down:animation.subtype = .fromBottom }
              animation.duration=transition.duration; if ![TransitionKind.wipe,.continuity,.zoom].contains(transition.kind) { audience.layer?.add(animation,forKey:"slide") }
             if transition.kind == .zoom { let zoom=CABasicAnimation(keyPath:"transform.scale"); zoom.fromValue=0.8; zoom.toValue=1; zoom.duration=transition.duration; audience.layer?.add(zoom,forKey:"zoom") }
@@ -182,8 +188,10 @@ final class PresenterController: NSObject, NSWindowDelegate {
         return NSRect(x:(Double(audience.bounds.width)-deck.width*scale)/2,y:(Double(audience.bounds.height)-deck.height*scale)/2,width:deck.width*scale,height:deck.height*scale)
     }
     func update() {
+        visualTimer?.fireDate=paused ? .distantFuture : Date()
         if mediaSlideID != deck.slides[index].id {
             do { try media.install(slide:deck.slides[index],deck:deck,in:audience,rect:audienceRect) } catch { NSLog("Media playback failed: %@",error.localizedDescription) }
+            if paused { media.pause() }
             audience.addSubview(annotations,positioned:.above,relativeTo:nil)
             mediaSlideID=deck.slides[index].id
         }
@@ -206,6 +214,8 @@ final class PresenterController: NSObject, NSWindowDelegate {
         } else { transitionFrom=nil; audience.wipeFrom=nil }
         media.layout(slide:frame,deck:deck,rect:audienceRect)
         if audience.playbackSlide != frame || audience.wipeFrom != nil { audience.playbackSlide=frame; audience.needsDisplay=true }
+        let pending=AnimationEngine.schedule(deck.slides[index].animations ?? []).contains { $0.click == animationClick && elapsed <= $0.end }
+        if !pending && transitionFrom == nil { visualTimer?.fireDate = .distantFuture }
     }
     func updateClock() {
         let elapsed=Int((pausedAt ?? Date()).timeIntervalSince(started))
@@ -216,7 +226,7 @@ final class PresenterController: NSObject, NSWindowDelegate {
         let remaining=max(0.05,interval-Date().timeIntervalSince(slideStarted))
         advance=Timer.scheduledTimer(withTimeInterval:remaining,repeats:false) { [weak self] _ in self?.navigate(1) }
     }
-    @objc func pause() { paused.toggle(); if paused { pausedAt=Date(); advance?.invalidate(); media.pause() } else { media.resume(); if let at=pausedAt { let interval=Date().timeIntervalSince(at); started=started.addingTimeInterval(interval); slideStarted=slideStarted.addingTimeInterval(interval); animationStarted=animationStarted.addingTimeInterval(interval); transitionStarted=transitionStarted.addingTimeInterval(interval) }; pausedAt=nil; scheduleAdvance() }; updateClock() }
+    @objc func pause() { paused.toggle(); if paused { pausedAt=Date(); advance?.invalidate(); visualTimer?.fireDate = .distantFuture; media.pause() } else { visualTimer?.fireDate=Date(); media.resume(); if let at=pausedAt { let interval=Date().timeIntervalSince(at); started=started.addingTimeInterval(interval); slideStarted=slideStarted.addingTimeInterval(interval); animationStarted=animationStarted.addingTimeInterval(interval); transitionStarted=transitionStarted.addingTimeInterval(interval) }; pausedAt=nil; scheduleAdvance() }; updateClock() }
     @objc func black() { audience.black.toggle(); for view in audience.subviews { view.isHidden=audience.black }; audience.needsDisplay=true }
     @objc func end() { guard !ended else { return }; ended=true; recordTime(); clock?.invalidate(); advance?.invalidate(); visualTimer?.invalidate(); media.stop(); audienceWindow?.orderOut(nil); console?.orderOut(nil); NSApp.presentationOptions=[]; audienceWindow=nil; console=nil; if rehearse { onRehearsalFinished?(rehearsed) } }
     func windowWillClose(_ notification: Notification) { end() }

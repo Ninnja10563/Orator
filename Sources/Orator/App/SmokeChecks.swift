@@ -49,9 +49,10 @@ func checkEditingInteractions(_ editor: EditorWindowController) throws {
 
     var deck=document.deck
     let second=Layout.section.makeSlide(); deck.slides.append(second)
+    deck.slides[0].transition.advanceOnClick=false
     let presenter=PresenterController(deck:deck,startID:deck.slides[0].id)
     presenter.rehearse=true
-    presenter.start(); presenter.slideStarted=Date().addingTimeInterval(-2); presenter.next()
+    presenter.start(); presenter.advanceByClick(); guard presenter.index == 0 else { fatalError("Click advance ignored slide settings") }; presenter.slideStarted=Date().addingTimeInterval(-2); presenter.next()
     guard presenter.index == 1 else { fatalError("Presenter advance failed") }
     presenter.black(); guard presenter.audience.black else { fatalError("Black screen failed") }
     presenter.pause(); guard presenter.paused else { fatalError("Presenter pause failed") }
