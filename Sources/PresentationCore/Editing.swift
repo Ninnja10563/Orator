@@ -9,6 +9,7 @@ public enum Edit: Codable, Equatable {
     case replaceSlide(Slide)
     case orderSlides([UUID])
     case setTheme(Theme)
+    case setMasters([SlideMaster]?)
     case putAsset(Asset)
     case removeAsset(UUID)
     case batch([Edit])
@@ -29,6 +30,7 @@ public enum Edit: Codable, Equatable {
             guard ids.count == deck.slides.count, Set(ids).count == ids.count, Set(ids) == Set(deck.slides.map(\.id)) else { throw EditError.invalidIndex }
             let old = deck.slides.map(\.id); let map = Dictionary(uniqueKeysWithValues: deck.slides.map { ($0.id,$0) })
             deck.slides = ids.compactMap { map[$0] }; return .orderSlides(old)
+        case let .setMasters(masters): let old=deck.masters; deck.masters=masters; return .setMasters(old)
         case let .setTheme(theme): let old=deck.theme; deck.theme=theme; return .setTheme(old)
         case let .putAsset(asset): let old=deck.assets.updateValue(asset,forKey:asset.id); return old.map(Edit.putAsset) ?? .removeAsset(asset.id)
         case let .removeAsset(id): guard let old=deck.assets.removeValue(forKey:id) else { return .batch([]) }; return .putAsset(old)

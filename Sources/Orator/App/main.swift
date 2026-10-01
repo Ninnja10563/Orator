@@ -101,6 +101,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let slide=menu("Slide"); item(slide,"Add Slide…",#selector(EditorWindowController.addSlide(_:)),"n",[.command,.shift]); item(slide,"Duplicate Slides",#selector(EditorWindowController.duplicateSlides(_:))); item(slide,"Delete Slides",#selector(EditorWindowController.deleteSlides(_:))); item(slide,"Skip / Include Slide",#selector(EditorWindowController.skipSlide(_:)))
         item(slide,"Copy Slides",#selector(EditorWindowController.copySlides(_:)))
         item(slide,"Paste Slides",#selector(EditorWindowController.pasteSlides(_:)))
+        item(slide,"Edit / Finish Editing Master",#selector(EditorWindowController.editMaster(_:)))
+        item(slide,"Add Master",#selector(EditorWindowController.addMaster(_:)))
+        item(slide,"Apply Master…",#selector(EditorWindowController.assignMaster(_:)))
+        item(slide,"Background…",#selector(EditorWindowController.changeBackground(_:)))
+        item(slide,"Add Master Footer",#selector(EditorWindowController.addFooter(_:)))
+        item(slide,"Animation Timeline…",#selector(EditorWindowController.showAnimations(_:)))
         let arrange=menu("Arrange"); item(arrange,"Group",#selector(EditorWindowController.groupObjects(_:)),"g",[.command,.option]); item(arrange,"Ungroup",#selector(EditorWindowController.ungroupObjects(_:)),"g",[.command,.option,.shift]); item(arrange,"Bring to Front",#selector(EditorWindowController.bringToFront(_:))); item(arrange,"Send to Back",#selector(EditorWindowController.sendToBack(_:))); item(arrange,"Lock / Unlock Selection",#selector(EditorWindowController.toggleLock(_:))); item(arrange,"Unlock All",#selector(EditorWindowController.unlockAll(_:))); arrange.addItem(.separator())
         for (i,title) in ["Align Left","Align Center","Align Right","Align Top","Align Middle","Align Bottom","Distribute Horizontally","Distribute Vertically"].enumerated() { item(arrange,title,#selector(EditorWindowController.alignObjects(_:))); arrange.items.last?.tag=i }
         let present=menu("Present"); item(present,"Present from Current Slide",#selector(EditorWindowController.startPresentation(_:)),"p",[.command,.shift])

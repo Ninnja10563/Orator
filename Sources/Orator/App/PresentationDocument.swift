@@ -17,6 +17,7 @@ final class PresentationDocument: NSDocument {
     var snapshot: Presentation {
         var snapshot=deck
         if let editor=windowControllers.first as? EditorWindowController, let pending=editor.canvas.pendingTextSlide, let i=snapshot.slides.firstIndex(where: { $0.id == pending.id }) { snapshot.slides[i]=pending }
+        if let editor=windowControllers.first as? EditorWindowController, let id=editor.editingMasterID, let pending=editor.canvas.pendingTextSlide, let i=snapshot.masters?.firstIndex(where: { $0.id == id }) { snapshot.masters?[i].objects=pending.objects }
         return snapshot
     }
     override func data(ofType typeName: String) throws -> Data { try PresentationFile.encode(snapshot) }

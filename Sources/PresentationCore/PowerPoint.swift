@@ -42,7 +42,8 @@ public enum PowerPoint {
         override("ppt/slideMasters/slideMaster1.xml","presentationml.slideMaster")
         override("ppt/slideLayouts/slideLayout1.xml","presentationml.slideLayout")
         override("ppt/theme/theme1.xml","theme")
-        for (index,slide) in deck.slides.enumerated() {
+        for (index,sourceSlide) in deck.slides.enumerated() {
+            let slide=deck.resolved(sourceSlide)
             let n=index+1; var rels=relationship("rIdLayout","slideLayout","../slideLayouts/slideLayout1.xml"), body="", objectNumber=1
             func objectXML(_ o: SlideObject) throws -> String {
                 guard !o.hidden else { return "" }

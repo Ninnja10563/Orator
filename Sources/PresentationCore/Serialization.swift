@@ -52,11 +52,16 @@ public enum PresentationFile {
                 try objects(o.children,depth:depth+1)
             }
         }
+        for master in deck.masters ?? [] { try unique(master.id); try objects(master.objects,depth:0); for layout in master.layouts { try unique(layout.id); try objects(layout.objects,depth:0) } }
         for slide in deck.slides {
             try unique(slide.id)
             guard slide.background.map(validColor) ?? true, slide.transition.duration.isFinite, (0...60).contains(slide.transition.duration),
                   slide.transition.advanceAfter.map({ $0.isFinite && $0 > 0 && $0 <= 86400 }) ?? true,
                   slide.guides.allSatisfy({ $0.position.isFinite && abs($0.position) <= 1_000_000 }) else { throw FormatError.invalid("invalid slide style or timing") }
+            let objectIDs=Set(slide.objects.map(\.id))
+            for animation in slide.animations ?? [] {
+                guard objectIDs.contains(animation.objectID), animation.duration.isFinite, (0...60).contains(animation.duration), animation.delay.isFinite, (0...86400).contains(animation.delay), animation.path.allSatisfy({ $0.x.isFinite && $0.y.isFinite }) else { throw FormatError.invalid("invalid animation") }
+            }
             try objects(slide.objects,depth:0)
         }
     }

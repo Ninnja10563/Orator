@@ -84,6 +84,9 @@ public struct SlideObject: Codable, Equatable, Identifiable, Sendable {
     public var text = ""
     public var textStyle = TextStyle()
     public var textRuns: [TextRun]? = nil
+    public var placeholderKey: String? = nil
+    public var motionID: UUID? = nil
+    public var animationClip: Rect? = nil
     public var shape: ShapeKind = .rectangle
     public var image: ImageContent? = nil
     public var table: TableContent? = nil
@@ -92,7 +95,7 @@ public struct SlideObject: Codable, Equatable, Identifiable, Sendable {
     public var children: [SlideObject] = []
     public init(kind: ObjectKind, name: String, frame: Rect) { self.kind=kind; self.name=name; self.frame=frame }
     public func duplicated(offset: Point = Point(24,24)) -> SlideObject {
-        var copy = self; copy.id = UUID(); copy.frame.x += offset.x; copy.frame.y += offset.y
+        var copy = self; copy.motionID=motionID ?? id; copy.id = UUID(); copy.frame.x += offset.x; copy.frame.y += offset.y
         copy.children = children.map { $0.duplicated(offset: offset) }; return copy
     }
     public mutating func transform(to newFrame: Rect) {
@@ -105,9 +108,11 @@ public struct SlideObject: Codable, Equatable, Identifiable, Sendable {
         frame = newFrame
     }
 }
-public enum TransitionKind: String, Codable, CaseIterable, Sendable { case none, fade, push }
+public enum TransitionKind: String, Codable, CaseIterable, Sendable { case none, fade, dissolve, push, wipe, slide, zoom, continuity }
 public struct Transition: Codable, Equatable, Sendable {
     public var kind: TransitionKind = .none
+    public var direction: MotionDirection? = nil
+    public var advanceOnClick: Bool? = nil
     public var duration: Double = 0.4
     public var advanceAfter: Double? = nil
     public init() {}
@@ -124,15 +129,20 @@ public struct Guide: Codable, Equatable, Sendable {
 public struct Slide: Codable, Equatable, Identifiable, Sendable {
     public var id = UUID(); public var title = "Untitled Slide"; public var section = ""
     public var layout: Layout = .blank
+    public var masterID: UUID? = nil
+    public var layoutID: UUID? = nil
     public var objects: [SlideObject] = []
     public var background: RGBA? = nil
     public var notes = ""; public var skipped = false
     public var transition = Transition()
+    public var animations: [ObjectAnimation]? = nil
     public var guides: [Guide] = []
     public var comments: [Comment] = []
     public init() {}
     public func duplicated() -> Slide {
         var copy = self; copy.id = UUID(); copy.objects = objects.map { $0.duplicated(offset: Point()) }
+        let mapping=Dictionary(uniqueKeysWithValues:zip(objects,copy.objects).map { ($0.id,$1.id) })
+        copy.animations=animations?.map { animation in var result=animation; result.id=UUID(); result.objectID=mapping[animation.objectID] ?? animation.objectID; return result }
         copy.comments = []; return copy
     }
 }
@@ -159,10 +169,11 @@ public struct Presentation: Codable, Equatable, Sendable {
     public var theme = Theme.studio
     public var slides: [Slide] = [Layout.title.makeSlide()]
     public var assets: [UUID: Asset] = [:]
-    public init() {}
+    public var masters: [SlideMaster]? = [SlideMaster()]
+    public init() { slides[0].masterID=masters?.first?.id }
 }
 public enum Layout: String, Codable, CaseIterable, Sendable {
-    case title = "Title", titleContent = "Title and Content", section = "Section", twoColumns = "Two Columns", blank = "Blank"
+    case title = "Title", titleContent = "Title and Content", section = "Section", twoColumns = "Two Columns", comparison = "Comparison", titleOnly = "Title Only", imageText = "Image and Text", blank = "Blank"
     public func makeSlide() -> Slide {
         var slide = Slide(); slide.layout = self
         func text(_ name: String, _ value: String, _ rect: Rect, _ size: Double, _ bold: Bool = false) -> SlideObject {
@@ -174,10 +185,12 @@ public enum Layout: String, Codable, CaseIterable, Sendable {
             slide.objects = [text("Title",slide.title,Rect(96,232,1088,150),72,true), text("Subtitle","A presentation by you",Rect(100,414,1000,72),30)]
         case .section:
             slide.title = "A new chapter"; slide.objects = [text("Title",slide.title,Rect(96,270,1088,180),64,true)]
-        case .titleContent, .twoColumns:
+        case .titleContent, .twoColumns, .comparison, .imageText, .titleOnly:
             slide.title = "Slide title"
-            slide.objects = [text("Title",slide.title,Rect(80,56,1120,100),48,true),text("Content","Add your ideas here",Rect(80,190,self == .twoColumns ? 520 : 1120,440),30)]
-            if self == .twoColumns { slide.objects.append(text("Content","A second perspective",Rect(680,190,520,440),30)) }
+            slide.objects = [text("Title",slide.title,Rect(80,56,1120,100),48,true),text("Content","Add your ideas here",Rect(80,190,[.twoColumns,.comparison,.imageText].contains(self) ? 520 : 1120,440),30)]
+            if self == .twoColumns || self == .comparison { slide.objects.append(text("Content","A second perspective",Rect(680,190,520,440),30)) }
+            if self == .titleOnly { slide.objects.removeLast() }
+            if self == .imageText { var placeholder=SlideObject(kind:.shape,name:"Image Placeholder",frame:Rect(680,190,520,440)); placeholder.style.fill=RGBA(0.90,0.91,0.93); slide.objects.append(placeholder) }
         case .blank: slide.title = "Blank Slide"
         }
         return slide

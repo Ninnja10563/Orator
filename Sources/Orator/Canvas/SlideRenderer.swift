@@ -43,8 +43,8 @@ final class SlideRenderer {
         rect.clip()
         let t=AffineTransform(translationByX:rect.minX,byY:rect.minY)
         var transform=t; transform.scale(x:rect.width/deck.width,y:rect.height/deck.height); (transform as NSAffineTransform).concat()
-        (slide.background ?? deck.theme.background).nsColor.setFill(); NSRect(x:0,y:0,width:deck.width,height:deck.height).fill()
-        for object in slide.objects where !object.hidden && object.id != excluding { draw(object:object,deck:deck) }
+        (deck.resolved(slide).background ?? deck.theme.background).nsColor.setFill(); NSRect(x:0,y:0,width:deck.width,height:deck.height).fill()
+        for object in deck.resolved(slide).objects where !object.hidden && object.id != excluding { draw(object:object,deck:deck) }
     }
     func draw(object o: SlideObject, deck: Presentation, inheritedOpacity: Double = 1) {
         guard !o.hidden else { return }
@@ -53,6 +53,7 @@ final class SlideRenderer {
         context.setAlpha(o.opacity*inheritedOpacity)
         let r=o.frame.nsRect
         let transform=NSAffineTransform(); transform.translateX(by:r.midX,yBy:r.midY); transform.rotate(byDegrees:o.rotation); transform.translateX(by:-r.midX,yBy:-r.midY); transform.concat()
+        if let clip=o.animationClip { clip.nsRect.clip() }
         switch o.kind {
         case .text: drawRichText(o,rect:r,theme:deck.theme)
         case .shape:

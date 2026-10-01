@@ -13,9 +13,14 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     let vertical=NSSplitView()
     let navigationPane=SurfaceView()
     let notesPane=SurfaceView()
+    var editingMasterID: UUID?
     var selectedSlideID: UUID
-    var currentSlide: Slide { presentation.deck.slides.first { $0.id == selectedSlideID } ?? presentation.deck.slides[0] }
+    var currentSlide: Slide {
+        if let id=editingMasterID, let master=presentation.deck.masters?.first(where: { $0.id == id }) { return master.slide }
+        return presentation.deck.slides.first { $0.id == selectedSlideID } ?? presentation.deck.slides[0]
+    }
     var presenter: PresenterController?
+    var toolWindows: [NSWindowController]=[]
     private var refreshing=false
     private var thumbnails: [UUID:(Slide,Theme,NSImage)]=[:]
     private let slideDrag=NSPasteboard.PasteboardType("app.orator.slide-indices")
@@ -101,6 +106,7 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
         refreshing=true; defer { refreshing=false }
         if !presentation.deck.slides.contains(where: { $0.id == selectedSlideID }) { selectedSlideID=presentation.deck.slides[0].id }
         canvas.selected.formIntersection(Set(currentSlide.objects.map(\.id)))
+        if editingMasterID != nil { thumbnails.removeAll() }
         navigator.reloadData()
         if let row=presentation.deck.slides.firstIndex(where: { $0.id == selectedSlideID }), !navigator.selectedRowIndexes.contains(row) { navigator.selectRowIndexes(IndexSet(integer:row),byExtendingSelection:false) }
         if notes.string != currentSlide.notes {
@@ -109,11 +115,18 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
             notes.setSelectedRange(NSRange(location:min(insertion,(notes.string as NSString).length),length:0))
         }
         status.stringValue="Slide \((presentation.deck.slides.firstIndex { $0.id == selectedSlideID } ?? 0)+1) of \(presentation.deck.slides.count)   ·   \(Int(canvas.scale*100))%"
+        if editingMasterID != nil { status.stringValue="EDITING MASTER — "+currentSlide.title+" · Slide → Finish Editing Master to return" }
         canvas.needsDisplay=true; inspector.refresh()
         thumbnails=thumbnails.filter { id,_ in presentation.deck.slides.contains { $0.id == id } }
     }
     func selectionChanged() { inspector.refresh() }
-    func commit(_ slide: Slide, name: String) { guard slide != currentSlide else { return }; presentation.perform(.replaceSlide(slide),named:name) }
+    func commit(_ slide: Slide, name: String) {
+        guard slide != currentSlide else { return }
+        if let id=editingMasterID, var masters=presentation.deck.masters, let i=masters.firstIndex(where: { $0.id == id }) {
+            masters[i].objects=slide.objects; masters[i].background=slide.background; masters[i].name=slide.title
+            presentation.perform(.setMasters(masters),named:name)
+        } else { presentation.perform(.replaceSlide(slide),named:name) }
+    }
     func mutateSelection(_ name: String, _ action: (inout SlideObject) -> Void) {
         canvas.finishText(); var slide=currentSlide
         for i in slide.objects.indices where canvas.selected.contains(slide.objects[i].id) && !slide.objects[i].locked { action(&slide.objects[i]) }
@@ -144,7 +157,7 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     func tableViewSelectionDidChange(_ notification: Notification) {
         guard !refreshing, navigator.selectedRow >= 0 else { return }
         let nextID=presentation.deck.slides[navigator.selectedRow].id
-        canvas.finishText(); selectedSlideID=nextID; canvas.selected=[]; notes.string=currentSlide.notes; refresh()
+        canvas.finishText(); editingMasterID=nil; selectedSlideID=nextID; canvas.selected=[]; notes.string=currentSlide.notes; refresh()
     }
     func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? {
         let item=NSPasteboardItem(); item.setString(presentation.deck.slides[row].id.uuidString,forType:slideDrag); return item
@@ -167,13 +180,16 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
         menu.popUp(positioning:nil,at:NSPoint(x:20,y:split.bounds.height-20),in:split)
     }
     @objc func addLayout(_ sender: NSMenuItem) {
-        let slide=(Layout(rawValue:sender.representedObject as? String ?? "Blank") ?? .blank).makeSlide()
+        var slide=(Layout(rawValue:sender.representedObject as? String ?? "Blank") ?? .blank).makeSlide()
+        slide.masterID=currentSlide.masterID ?? presentation.deck.masters?.first?.id
         let index=(presentation.deck.slides.firstIndex { $0.id == selectedSlideID } ?? 0)+1
         presentation.perform(.insertSlide(slide,index),named:"Add Slide"); selectedSlideID=slide.id; canvas.selected=[]; refresh()
     }
     @objc func copySlides(_ sender: Any?) {
         canvas.finishText()
-        let slides=navigator.selectedRowIndexes.map { presentation.deck.slides[$0] }
+        let slides=navigator.selectedRowIndexes.map { index -> Slide in
+            var slide=presentation.deck.resolved(presentation.deck.slides[index]); slide.masterID=nil; slide.layoutID=nil; return slide
+        }
         guard !slides.isEmpty, let data=try? JSONEncoder().encode(SlideClipboard(slides:slides,assets:presentation.deck.assets)) else { return }
         NSPasteboard.general.clearContents(); NSPasteboard.general.setData(data,forType:Self.slidePasteboard)
     }
@@ -229,7 +245,7 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     }
     @objc func insertTable(_ sender: Any?) { var o=SlideObject(kind:.table,name:"Table",frame:Rect(140,180,1000,360)); o.table=TableContent(); insert(o) }
     @objc func insertChart(_ sender: Any?) { var o=SlideObject(kind:.chart,name:"Chart",frame:Rect(160,120,960,500)); o.chart=ChartContent(); insert(o) }
-    @objc func deleteObjects(_ sender: Any?) { canvas.finishText(); var slide=currentSlide; slide.objects.removeAll { canvas.selected.contains($0.id) && !$0.locked }; commit(slide,name:"Delete Objects"); canvas.selected=[] }
+    @objc func deleteObjects(_ sender: Any?) { canvas.finishText(); var slide=currentSlide; let removed=Set(slide.objects.filter { canvas.selected.contains($0.id) && !$0.locked }.map(\.id)); slide.objects.removeAll { removed.contains($0.id) }; slide.animations?.removeAll { removed.contains($0.objectID) }; commit(slide,name:"Delete Objects"); canvas.selected=[] }
     @objc func duplicateObjects(_ sender: Any?) { canvas.finishText(); var slide=currentSlide; let copies=slide.objects.filter { canvas.selected.contains($0.id) }.map { $0.duplicated() }; slide.objects += copies; commit(slide,name:"Duplicate Objects"); canvas.selected=Set(copies.map(\.id)) }
     @objc func copyObjects(_ sender: Any?) {
         canvas.finishText(); let objects=currentSlide.objects.filter { canvas.selected.contains($0.id) }; guard !objects.isEmpty else { return }
