@@ -1,6 +1,6 @@
 # Orator
 
-A native macOS presentation editor built with Swift and AppKit for Apple Silicon and macOS 14 or later. **0.2.0 — development preview** — substantial editing and presentation workflows are implemented; this is not yet a production-certified replacement for PowerPoint or Keynote. No web runtime, cloud account or external AI service is required.
+A native macOS presentation editor built with Swift and AppKit for Apple Silicon and macOS 14 or later. **0.3.0 — development preview** — substantial editing and presentation workflows are implemented; this is not yet a production-certified replacement for PowerPoint or Keynote. No web runtime, cloud account or external AI service is required.
 
 ## Build and run
 
@@ -12,7 +12,7 @@ scripts/build-app.sh
 open build/Orator.app
 ```
 
-The build creates an arm64 application with a Retina icon and an ad-hoc signature. Distribution signing and notarization are not configured. Downloadable app archives and visual test captures are available from successful [macOS workflow runs](https://github.com/Ninnja10563/Orator/actions/workflows/macos.yml).
+The build creates an arm64 application with a Retina icon and an ad-hoc signature. A separate [distribution workflow](docs/DISTRIBUTION.md) supports Developer ID signing, notarization and DMG creation; its required credentials are not yet configured. Downloadable app archives and visual test captures are available from successful [macOS workflow runs](https://github.com/Ninnja10563/Orator/actions/workflows/macos.yml).
 
 ## Editing
 
@@ -35,20 +35,22 @@ Embedded audio/video uses AVFoundation, with preview, playback settings, trim bo
 
 ## Documents and exchange
 
-Versioned `.orator` documents preserve the complete native model. NSDocument supplies safe saving and autosave; independent recovery snapshots reopen as labeled copies. Reversible commands group continuous drags into one undo action.
+Versioned `.orator` document packages preserve the complete native model and original assets as separate files, with SHA-256 validation. Older single-file documents remain readable and migrate on safe saving. NSDocument supplies safe saving and autosave; independent recovery snapshots reopen as labeled copies. Reversible commands group continuous drags into one undo action.
 
 - Vector PDF export, paginated speaker-note PDFs and native printing. PowerPoint and PDF file operations run off the editing thread.
 - Genuine zipped Office Open XML PPTX import/export with editable rich text, shapes, images, nested groups, connectors, tables, six chart types, embedded chart workbooks, media, notes and compatible transitions.
-- PPTX import resolves master/layout appearances into editable slide content. Export reports unsupported conversions instead of silently claiming lossless compatibility.
+- PPTX exchange retains used master/layout relationships and linked placeholders, rich table text and hyperlinks, threaded comments, supported object animations, motion paths and media playback settings. Export reports unsupported conversions instead of silently claiming lossless compatibility.
 - Google Slides exchange is through PPTX import/export; no Google account or service dependency is built into Orator.
 
-**PPTX limits:** master/layout relationships and object animations are not retained across exchange. Continuity exports as Fade. Media playback settings, unusual shapes/effects and advanced third-party content may need adjustment. Comments are currently native-only. Keep original PPTX files. Visual fidelity has not been certified in the Microsoft PowerPoint GUI.
+**PPTX limits:** Continuity exports as Fade. Unusual shapes/effects, advanced third-party content and unsupported animation parameters may need adjustment. Only used layouts are imported. Classic comments and replies are supported; resolution and object anchors use Orator extension metadata. Media end trims need a readable source duration. Keep original PPTX files. Visual fidelity has not been certified in the Microsoft PowerPoint GUI.
 
 ## Verification and remaining work
 
 The [macOS workflow](.github/workflows/macos.yml) builds the arm64 app, runs core regression tests, launches the bundled app, exercises native editing/undo/save/presentation/media behavior, and captures light/dark workspaces and content editors. A forced-termination check verifies recovery of active text in a fresh process. Independent python-pptx checks and Microsoft's Open XML SDK validate exported presentations and embedded chart workbooks. Tests include an independent PowerPoint fixture, theme/layout inheritance, nested groups, rich text, malformed input, recovery and a 500-slide document.
 
-Hands-on VoiceOver, multiple-display, Vision inference and large-deck performance acceptance remain necessary. Real-time collaboration, full OOXML animation fidelity and production signing/notarization are not complete. See the [implementation status and acceptance plan](docs/DEVELOPMENT.md) for precise boundaries.
+Hands-on VoiceOver, multiple-display, Vision inference and large-deck performance acceptance remain necessary. Real-time collaboration is a future extension. Full OOXML fidelity and production signing/notarization are not certified. See the [implementation status and acceptance plan](docs/DEVELOPMENT.md) for precise boundaries.
+
+The [user guide](docs/USER_GUIDE.md) covers authoring, presenting, recovery and exchange.
 
 ## Editing shortcuts
 
