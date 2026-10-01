@@ -7,6 +7,15 @@ func checkEditingInteractions(_ editor: EditorWindowController) throws {
     guard let window=editor.window else { fatalError("Editor window missing") }
     let original=editor.currentSlide
     canvas.selected=[]
+    let accessible=canvas.accessibilityChildren()?.compactMap { $0 as? AccessibleSlideObject } ?? []
+    guard accessible.count == original.objects.filter({ !$0.hidden }).count, let first=accessible.first,
+          first === canvas.accessibilityChildren()?.first as? AccessibleSlideObject,
+          first.accessibilityPerformPress(), canvas.selected.contains(original.objects[0].id) else { fatalError("Accessible slide selection failed or its identity changed") }
+    canvas.selected=[]
+    let backwards=NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:[.shift],timestamp:0,windowNumber:window.windowNumber,context:nil,characters:"\t",charactersIgnoringModifiers:"\t",isARepeat:false,keyCode:48)!
+    canvas.keyDown(with:backwards)
+    guard canvas.selected == Set([original.objects.last!.id]) else { fatalError("Shift-Tab did not begin at the last object") }
+    canvas.selected=[]
     func event(_ type: NSEvent.EventType,_ point: Point,_ modifiers: NSEvent.ModifierFlags = [.option]) -> NSEvent {
         let local=NSPoint(x:canvas.slideRect.minX+point.x*canvas.scale,y:canvas.slideRect.minY+point.y*canvas.scale)
         return NSEvent.mouseEvent(with:type,location:canvas.convert(local,to:nil),modifierFlags:modifiers,timestamp:ProcessInfo.processInfo.systemUptime,windowNumber:window.windowNumber,context:nil,eventNumber:1,clickCount:1,pressure:1)!

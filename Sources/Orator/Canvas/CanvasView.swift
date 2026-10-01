@@ -54,6 +54,7 @@ final class InlineTextView: NSTextView {
 }
 
 final class CanvasView: NSView, NSTextViewDelegate {
+    private var accessibleObjects: [UUID:AccessibleSlideObject]=[:]
     weak var editor: EditorWindowController?
     var deck: Presentation { editor?.presentation.deck ?? Presentation() }
     var slide: Slide { preview ?? editor?.currentSlide ?? Slide() }
@@ -252,8 +253,8 @@ final class CanvasView: NSView, NSTextViewDelegate {
         if event.keyCode == 36, let o=slide.objects.first(where: { selected.contains($0.id) && ($0.kind == .text || $0.kind == .shape) }) { beginText(o); return }
         if event.keyCode == 48 {
             let items=slide.objects.filter { !$0.hidden && !$0.locked }; guard !items.isEmpty else { return }
-            let current=items.firstIndex(where: { selected.contains($0.id) }) ?? -1
-            let next=(current+(event.modifierFlags.contains(.shift) ? -1 : 1)+items.count)%items.count
+            let current=items.firstIndex(where: { selected.contains($0.id) }), backwards=event.modifierFlags.contains(.shift)
+            let next=current.map { ($0+(backwards ? -1 : 1)+items.count)%items.count } ?? (backwards ? items.count-1 : 0)
             selected=[items[next].id]; NSAccessibility.post(element:self,notification:.selectedChildrenChanged); return
         }
         if [51,117].contains(event.keyCode) { editor?.deleteObjects(nil); return }
@@ -361,9 +362,11 @@ final class CanvasView: NSView, NSTextViewDelegate {
         return menu
     }
     override func accessibilityChildren() -> [Any]? {
-        slide.objects.filter { !$0.hidden }.map { object in
-            let element=AccessibleSlideObject(); element.setAccessibilityRole(.button)
-            element.onPress = { [weak self] in self?.selected=[object.id]; self?.window?.makeFirstResponder(self) }
+        let visible=slide.objects.filter { !$0.hidden }, ids=Set(slide.objects.filter { !$0.hidden }.map(\.id))
+        accessibleObjects=accessibleObjects.filter { ids.contains($0.key) }
+        return visible.map { object in
+            let element=accessibleObjects[object.id] ?? AccessibleSlideObject(); accessibleObjects[object.id]=element; element.setAccessibilityRole(.button)
+            element.onPress = { [weak self] in guard let self else { return }; self.selected=[object.id]; self.window?.makeFirstResponder(self); NSAccessibility.post(element:self,notification:.selectedChildrenChanged) }
             element.setAccessibilityLabel(object.name+(object.text.isEmpty ? "" : ": "+object.text)); element.setAccessibilityParent(self)
             if let window=window { element.setAccessibilityFrame(window.convertToScreen(convert(viewRect(object.frame),to:nil))) }
             element.setAccessibilityValue(selected.contains(object.id) ? "Selected" : "")
