@@ -111,8 +111,8 @@ public enum PowerPoint {
             }
             for object in slide.objects { body += try objectXML(object) }
             if !(slide.animations ?? []).isEmpty { warnings.insert("Object animations are not exported to PowerPoint yet.") }
-            var transition=""
-            if slide.transition.kind != .none { transition="<p:transition spd=\"med\">"+(slide.transition.kind == .fade ? "<p:fade/>" : "<p:push dir=\"l\"/>")+"</p:transition>" }
+            let transition=transitionXML(slide.transition)
+            if slide.transition.kind == .continuity { warnings.insert("Continuity transitions export as Fade. Object matching remains available in native Orator files.") }
             try write("ppt/slides/slide\(n).xml","<?xml version=\"1.0\" encoding=\"UTF-8\"?><p:sld xmlns:a=\"\(a)\" xmlns:r=\"\(r)\" xmlns:p=\"\(p)\" show=\"\(slide.skipped ? 0 : 1)\"><p:cSld name=\"\(xml(slide.title))\"><p:bg><p:bgPr>\(solid(slide.background ?? deck.theme.background))<a:effectLst/></p:bgPr></p:bg><p:spTree>\(groupHeader)\(body)</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>\(transition)</p:sld>")
             if !slide.notes.isEmpty {
                 rels += relationship("rIdNotes","notesSlide","../notesSlides/notesSlide\(n).xml")

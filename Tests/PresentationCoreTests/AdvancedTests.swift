@@ -188,4 +188,22 @@ extension AdvancedTests {
         _=try PowerPoint.export(deck,to:url); let imported=try PowerPoint.importDeck(from:url).deck.slides[0].objects[0]
         XCTAssertEqual(imported.kind,.group); XCTAssertEqual(imported.rotation,20); XCTAssertEqual(imported.children[0].rotation,15); XCTAssertEqual(imported.children[0].children[0].text,"Group contents"); XCTAssertEqual(imported.children[0].children[0].textStyle.size,64)
     }
+    func testPowerPointTransitionSettingsRoundTrip() throws {
+        var deck=Presentation(); deck.slides=[]
+        for kind in TransitionKind.allCases {
+            var slide=Slide(); slide.transition.kind=kind; slide.transition.direction = .up; slide.transition.duration=1.375; slide.transition.advanceAfter=8.125; slide.transition.advanceOnClick=false; deck.slides.append(slide)
+        }
+        let url=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".pptx")
+        defer { try? FileManager.default.removeItem(at:url) }
+        let warnings=try PowerPoint.export(deck,to:url)
+        XCTAssertTrue(warnings.contains { $0.contains("Continuity") })
+        let imported=try PowerPoint.importDeck(from:url).deck
+        for (original,copy) in zip(deck.slides,imported.slides) {
+            XCTAssertEqual(copy.transition.kind,original.transition.kind == .continuity ? .fade : original.transition.kind)
+            XCTAssertEqual(copy.transition.duration,1.375,accuracy:0.001)
+            XCTAssertEqual(copy.transition.advanceAfter,8.125)
+            XCTAssertEqual(copy.transition.advanceOnClick,false)
+            if [.push,.wipe,.slide].contains(original.transition.kind) { XCTAssertEqual(copy.transition.direction,.up) }
+        }
+    }
 }

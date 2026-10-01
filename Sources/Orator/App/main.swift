@@ -48,6 +48,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     var shapes=Slide()
                     for (i,kind) in ShapeKind.allCases.enumerated() { var object=SlideObject(kind:.shape,name:kind.displayName,frame:Rect(Double(i%4)*280+40,Double(i/4)*160+30,220,100)); object.shape=kind; object.style.gradient=GradientFill(end:RGBA(0.8,0.2,0.1),angle:30); object.style.shadow=ObjectShadow(); object.style.strokeWidth=2; object.style.stroke = .ink; object.opacity=0.7; shapes.objects.append(object) }
                     var connector=SlideObject(kind:.shape,name:"Attached",frame:Rect(0,0,1,1)); connector.shape = .line; connector.connector=Connector(start:ConnectorEndpoint(point:Point(),objectID:shapes.objects[0].id,anchor:.right),end:ConnectorEndpoint(point:Point(),objectID:shapes.objects[1].id,anchor:.left)); shapes.objects.append(connector); compatibility.slides.append(shapes)
+                    for kind in TransitionKind.allCases { var slide=Slide(); slide.transition.kind=kind; slide.transition.direction = .up; slide.transition.duration=1.25; slide.transition.advanceAfter=4.5; slide.transition.advanceOnClick=false; compatibility.slides.append(slide) }
+                    var grouped=Slide(); var group=SlideObject(kind:.group,name:"Editable group",frame:Rect(40,30,500,300)); group.rotation=12; group.children=Array(shapes.objects.prefix(2)); grouped.objects=[group]; compatibility.slides.append(grouped)
                     _=try PowerPoint.export(compatibility,to:url.deletingLastPathComponent().appendingPathComponent("compatibility.pptx"))
                     if let view=editor.window?.contentView?.superview {
                         view.layoutSubtreeIfNeeded()

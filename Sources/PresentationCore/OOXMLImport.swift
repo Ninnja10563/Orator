@@ -62,8 +62,7 @@ extension PowerPoint {
             if deck.slides.isEmpty { deck.theme=Theme(name:theme?.attr("name") ?? "Imported",background:palette["bg1"] ?? palette["lt1"] ?? .white,foreground:palette["tx1"] ?? palette["dk1"] ?? .ink,accent:palette["accent1"] ?? .accent,fontName:bodyFont); deck.theme.chartColors=(1...6).compactMap { palette["accent\($0)"] } }
             var slide=Slide(); slide.title=source.first("cSld")?.attr("name") ?? "Slide"; slide.skipped=source.attr("show") == "0"
             slide.background=(source.first("bg") ?? layout?.first("bg") ?? master?.first("bg"))?.officeColor(palette:palette) ?? palette["bg1"]
-            if source.first("transition")?.first("fade") != nil { slide.transition.kind = .fade }
-            if source.first("transition")?.first("push") != nil { slide.transition.kind = .push }
+            slide.transition=readTransition(source.first("transition"))
             var shapeIDs: [String:UUID]=[:], attachments: [UUID:(String,String,Int,Int)]=[:]
             var nodes: [(XMLElement,[String:String],Bool)]=[]
             for (owner,relationships) in [(master,masterLinks),(layout,layoutLinks)] {
