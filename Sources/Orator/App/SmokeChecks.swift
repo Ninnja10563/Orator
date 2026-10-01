@@ -67,6 +67,11 @@ func checkEditingInteractions(_ editor: EditorWindowController) throws {
     deck.slides[0].transition.advanceOnClick=false
     let presenter=PresenterController(deck:deck,startID:deck.slides[0].id)
     presenter.rehearse=true
+    let annotations=PresenterAnnotationView(audience:presenter.audience)
+    guard annotations.hitTest(.zero) == nil else { fatalError("Annotation overlay blocked normal presentation input") }
+    presenter.audience.inkTool = .pen
+    guard annotations.hitTest(.zero) === annotations else { fatalError("Pen overlay did not receive input") }
+    presenter.audience.inkTool = .none
     presenter.start(); presenter.advanceByClick(); guard presenter.index == 0 else { fatalError("Click advance ignored slide settings") }; presenter.slideStarted=Date().addingTimeInterval(-2); presenter.next()
     guard presenter.index == 1 else { fatalError("Presenter advance failed") }
     presenter.black(); guard presenter.audience.black else { fatalError("Black screen failed") }
