@@ -15,6 +15,7 @@ final class NativePackage {
     private func digest(_ data: Data) -> String { SHA256.hash(data:data).map { String(format:"%02x",$0) }.joined() }
     func encode(_ deck: Presentation) throws -> FileWrapper {
         try PresentationFile.validate(deck)
+        guard deck.assets.values.reduce(0, { $0+$1.data.count }) <= 2_000_000_000 else { throw FormatError.invalid("native package exceeds the in-memory document limit") }
         var metadata=deck, wrappers: [String:FileWrapper]=[:], lengths: [UUID:Int]=[:], hashes: [UUID:String]=[:]
         for (id,asset) in deck.assets {
             let entry: CachedAsset
@@ -26,6 +27,7 @@ final class NativePackage {
         cache=cache.filter { deck.assets[$0.key] != nil }
         let encoder=JSONEncoder(); encoder.outputFormatting=[.sortedKeys]
         let manifest=try encoder.encode(Manifest(presentation:metadata,lengths:lengths,hashes:hashes))
+        guard manifest.count <= 50*1024*1024 else { throw FormatError.invalid("native package metadata exceeds the supported limit") }
         return FileWrapper(directoryWithFileWrappers:["manifest.json":FileWrapper(regularFileWithContents:manifest),"Assets":FileWrapper(directoryWithFileWrappers:wrappers)])
     }
     func decode(_ wrapper: FileWrapper) throws -> Presentation {

@@ -4,7 +4,7 @@ import FoundationXML
 #endif
 
 extension PowerPoint {
-    static func tableXML(_ table: TableContent,object: SlideObject,theme: Theme) -> String {
+    static func tableXML(_ table: TableContent,object: SlideObject,theme: Theme,hyperlink: ((String) -> String)? = nil) -> String {
         let rows=table.cells.count, columns=table.cells[0].count
         let widths=table.columnWidths ?? Array(repeating:1,count:columns), heights=table.rowHeights ?? Array(repeating:1,count:rows)
         let grid=widths.map { "<a:gridCol w=\"\(emu(object.frame.width*$0/widths.reduce(0,+)))\"/>" }.joined()
@@ -25,7 +25,7 @@ extension PowerPoint {
                 let border=cell.border ?? theme.foreground.withAlpha(0.18)
                 let edges=["lnL","lnR","lnT","lnB"].map { "<a:\($0) w=\"\(emu(cell.borderWidth))\">\(solid(border))<a:prstDash val=\"solid\"/></a:\($0)>" }.joined()
                 let anchor=cell.vertical == .top ? "t" : cell.vertical == .middle ? "ctr" : "b"
-                body += "<a:tc\(attrs)><a:txBody><a:bodyPr/><a:lstStyle/>\(paragraphs(table.cells[r][c],style:textStyle,theme:theme,runs:table.richText?["\(r):\(c)"]))</a:txBody><a:tcPr marL=\"\(emu(cell.padding))\" marR=\"\(emu(cell.padding))\" marT=\"\(emu(cell.padding))\" marB=\"\(emu(cell.padding))\" anchor=\"\(anchor)\">\(edges)\(solid(fill))</a:tcPr></a:tc>"
+                body += "<a:tc\(attrs)><a:txBody><a:bodyPr/><a:lstStyle/>\(paragraphs(table.cells[r][c],style:textStyle,theme:theme,runs:table.richText?["\(r):\(c)"],hyperlink:hyperlink))</a:txBody><a:tcPr marL=\"\(emu(cell.padding))\" marR=\"\(emu(cell.padding))\" marT=\"\(emu(cell.padding))\" marB=\"\(emu(cell.padding))\" anchor=\"\(anchor)\">\(edges)\(solid(fill))</a:tcPr></a:tc>"
             }; body += "</a:tr>"
         }
         return "<a:tbl><a:tblPr firstRow=\"1\" bandRow=\"1\"/><a:tblGrid>\(grid)</a:tblGrid>\(body)</a:tbl>"
