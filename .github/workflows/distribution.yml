@@ -1,0 +1,61 @@
+name: Signed macOS distribution
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sign-and-notarize:
+    runs-on: macos-14
+    timeout-minutes: 45
+    environment: distribution
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests
+        run: swift test
+      - name: Import signing material into an ephemeral keychain
+        env:
+          CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          SIGN_IDENTITY: ${{ secrets.APPLE_SIGN_IDENTITY }}
+          NOTARY_KEY: ${{ secrets.APPLE_NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.APPLE_NOTARY_ISSUER }}
+        run: |
+          set -euo pipefail
+          for key in CERTIFICATE CERTIFICATE_PASSWORD SIGN_IDENTITY NOTARY_KEY NOTARY_KEY_ID NOTARY_ISSUER; do
+            [[ -n "${!key}" ]] || { echo "Missing distribution secret: $key" >&2; exit 1; }
+          done
+          umask 077
+          keychain="$RUNNER_TEMP/orator-signing.keychain-db"
+          password=$(openssl rand -hex 32)
+          printf '::add-mask::%s\n' "$password"
+          printf '%s' "$CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/orator-signing.p12"
+          printf '%s' "$NOTARY_KEY" > "$RUNNER_TEMP/orator-notary.p8"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/orator-signing.p12" -k "$keychain" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -k "$password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain"
+          printf 'ORATOR_SIGN_IDENTITY=%s\nORATOR_NOTARY_KEY_PATH=%s\nORATOR_NOTARY_KEY_ID=%s\nORATOR_NOTARY_ISSUER=%s\n' "$SIGN_IDENTITY" "$RUNNER_TEMP/orator-notary.p8" "$NOTARY_KEY_ID" "$NOTARY_ISSUER" >> "$GITHUB_ENV"
+      - name: Build with hardened runtime
+        run: scripts/build-app.sh
+      - name: Exercise the signed application
+        run: |
+          ORATOR_SMOKE_OUTPUT="$PWD/build/smoke.tiff" build/Orator.app/Contents/MacOS/Orator --smoke-test
+          python3 scripts/check-recovery.py
+      - name: Notarize and create distributable ZIP and DMG
+        run: scripts/notarize.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Orator-notarized-macOS-arm64
+          path: |
+            build/Orator-*-macOS-arm64.zip
+            build/Orator-*-macOS-arm64.dmg
+            build/SHA256SUMS
+            build/notarization-*.json
+      - name: Remove signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/orator-signing.keychain-db" || true
+          rm -f "$RUNNER_TEMP/orator-signing.p12" "$RUNNER_TEMP/orator-notary.p8"
