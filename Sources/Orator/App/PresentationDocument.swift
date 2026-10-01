@@ -9,6 +9,7 @@ final class PresentationDocument: NSDocument {
         if CommandLine.arguments.contains(where: { $0 == "--recovery-write-test" || $0 == "--recovery-read-test" }), let path=ProcessInfo.processInfo.environment["ORATOR_RECOVERY_DIRECTORY"] { return RecoveryStore(directory:URL(fileURLWithPath:path)) }
         return RecoveryStore(directory:FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("Orator/Recovery",isDirectory:true))
     }()
+    private let package=NativePackage()
     var recoverySession=UUID()
     private var recoveryTimer: Timer?
     var deck=Presentation()
@@ -23,6 +24,8 @@ final class PresentationDocument: NSDocument {
         if let editor=windowControllers.first as? EditorWindowController, let pending=editor.canvas.pendingTextSlide, let edit=editor.replacementEdit(pending) { _=try? edit.apply(to:&snapshot) }
         return snapshot
     }
+    override func fileWrapper(ofType typeName: String) throws -> FileWrapper { try package.encode(snapshot) }
+    override func read(from fileWrapper: FileWrapper,ofType typeName: String) throws { deck=try package.decode(fileWrapper) }
     override func data(ofType typeName: String) throws -> Data { try PresentationFile.encode(snapshot) }
     override func printOperation(withSettings printSettings: [NSPrintInfo.AttributeKey:Any]) throws -> NSPrintOperation {
         let settings=printInfo.copy() as! NSPrintInfo; settings.dictionary().addEntries(from:printSettings)

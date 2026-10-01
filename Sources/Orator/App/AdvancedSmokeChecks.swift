@@ -86,6 +86,20 @@ func checkAdvancedEditing(_ editor: EditorWindowController) throws {
     mediaGroup.children=[SlideObject(kind:.video,name:"Nested movie",frame:Rect(60,40,20,20))]
     let flattened=MediaPlayback.playbackObjects([mediaGroup])
     guard flattened.count == 1, abs(flattened[0].frame.x-40) < 0.01, abs(flattened[0].frame.y-60) < 0.01, flattened[0].rotation == 90, flattened[0].opacity == 0.5 else { fatalError("Grouped media transforms failed") }
+    let packageCodec=NativePackage(); var packageDeck=document.snapshot
+    let asset=Asset(name:"Preserved original.bin",data:Data(repeating:0xA5,count:4*1024*1024)); packageDeck.assets[asset.id]=asset
+    let package=try packageCodec.encode(packageDeck)
+    guard package.isDirectory, try packageCodec.decode(package) == packageDeck, (package.fileWrappers?["manifest.json"]?.regularFileContents?.count ?? Int.max) < 1_000_000 else { fatalError("Package encoding did not separate original assets") }
+    let legacy=FileWrapper(regularFileWithContents:try PresentationFile.encode(packageDeck)); guard try packageCodec.decode(legacy) == packageDeck else { fatalError("Legacy document migration failed") }
+    let damaged=try packageCodec.encode(packageDeck), assetDirectory=damaged.fileWrappers!["Assets"]!
+    assetDirectory.removeFileWrapper(assetDirectory.fileWrappers![asset.id.uuidString+".bin"]!); let corrupt=FileWrapper(regularFileWithContents:Data(repeating:0x5A,count:asset.data.count)); corrupt.preferredFilename=asset.id.uuidString+".bin"; assetDirectory.addFileWrapper(corrupt)
+    do { _=try packageCodec.decode(damaged); fatalError("Damaged package asset was accepted") } catch { }
+    let migrationURL=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".orator")
+    try PresentationFile.encode(packageDeck).write(to:migrationURL)
+    let migration=try PresentationDocument(contentsOf:migrationURL,ofType:"app.orator.presentation")
+    try migration.write(to:migrationURL,ofType:"app.orator.presentation",for:.saveOperation,originalContentsURL:migrationURL)
+    let migrated=try PresentationDocument(contentsOf:migrationURL,ofType:"app.orator.presentation")
+    guard migrated.deck == packageDeck else { fatalError("On-disk package migration lost content") }; try FileManager.default.removeItem(at:migrationURL)
     var backgroundFinished=false
     let backgroundSnapshot=document.snapshot
     DocumentTask.run(title:"Checking background file operations…",window:editor.window,operation: { () -> Bool in guard !Thread.isMainThread else { return false }; return !(try PDFExporter.data(backgroundSnapshot)).isEmpty },completion: { result in

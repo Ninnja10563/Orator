@@ -17,6 +17,7 @@
 <key>CFBundleDocumentTypes</key><array><dict>
 <key>CFBundleTypeName</key><string>Orator Presentation</string>
 <key>CFBundleTypeRole</key><string>Editor</string>
+<key>LSTypeIsPackage</key><true/>
 <key>LSHandlerRank</key><string>Owner</string>
 <key>LSItemContentTypes</key><array><string>app.orator.presentation</string></array>
 <key>NSDocumentClass</key><string>PresentationDocument</string>
@@ -24,7 +25,7 @@
 <key>UTExportedTypeDeclarations</key><array><dict>
 <key>UTTypeIdentifier</key><string>app.orator.presentation</string>
 <key>UTTypeDescription</key><string>Orator Presentation</string>
-<key>UTTypeConformsTo</key><array><string>public.json</string></array>
+<key>UTTypeConformsTo</key><array><string>com.apple.package</string></array>
 <key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>orator</string></array></dict>
 </dict></array>
 </dict></plist>
