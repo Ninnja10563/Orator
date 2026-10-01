@@ -128,6 +128,12 @@ extension PowerPoint {
                         let mediaAsset=try loadAsset(target); deck.assets[mediaAsset.id]=mediaAsset
                         object.kind=reference.localName == "videoFile" ? .video : .audio
                         object.media=MediaContent(assetID:mediaAsset.id); object.media?.posterAssetID=asset.id; object.image=nil
+                        if let settings=node.first("media") {
+                            object.media?.trimStart=(settings.direct("trim")?.number("st") ?? 0)/1000
+                            object.media?.fadeIn=(settings.direct("fade")?.number("in") ?? 0)/1000
+                            object.media?.fadeOut=(settings.direct("fade")?.number("out") ?? 0)/1000
+                            if (settings.direct("trim")?.number("end") ?? 0) > 0 { warnings.insert("A media end-trim offset requires adjustment after import.") }
+                        }
                     }
                 }
                 if node.localName == "graphicFrame" {
@@ -187,6 +193,20 @@ extension PowerPoint {
                 }
             }
             slide.objects=try parseObjects(source,relationships:links)
+            let mediaTimings=source.direct("timing")?.descendants("cMediaNode") ?? []
+            func importPlayback(_ objects: inout [SlideObject]) {
+                for index in objects.indices {
+                    if objects[index].media != nil, let timing=mediaTimings.first(where: { shapeIDs[$0.first("spTgt")?.attr("spid") ?? ""] == objects[index].id }) {
+                        objects[index].media?.volume=timing.attr("mute") == "1" ? 0 : timing.number("vol",default:100000)/100000
+                        objects[index].media?.acrossSlides=timing.number("numSld",default:1) > 1
+                        let clock=timing.direct("cTn"), conditions=clock?.direct("stCondLst")?.descendants("cond") ?? []
+                        objects[index].media?.loop=clock?.attr("repeatCount") == "indefinite"
+                        objects[index].media?.autoplay=conditions.contains { $0.attr("evt").isEmpty && $0.attr("delay") == "0" }
+                    }
+                    importPlayback(&objects[index].children)
+                }
+            }
+            importPlayback(&slide.objects)
             if let commentsPath=links.values.first(where: { $0.contains("comments/") }) { slide.comments=readComments(try document(commentsPath),authors:authors,ids:shapeIDs) }
             let animationImport=readAnimations(source,ids:shapeIDs,objects:slide.objects,width:deck.width,height:deck.height)
             slide.animations=animationImport.0.isEmpty ? nil : animationImport.0

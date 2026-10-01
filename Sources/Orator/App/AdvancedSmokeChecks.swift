@@ -97,7 +97,7 @@ func checkAdvancedEditing(_ editor: EditorWindowController) throws {
     let migrationURL=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".orator")
     try PresentationFile.encode(packageDeck).write(to:migrationURL)
     let migration=try PresentationDocument(contentsOf:migrationURL,ofType:"app.orator.presentation")
-    try migration.write(to:migrationURL,ofType:"app.orator.presentation",for:.saveOperation,originalContentsURL:migrationURL)
+    try migration.writeSafely(to:migrationURL,ofType:"app.orator.presentation",for:.saveOperation)
     let migrated=try PresentationDocument(contentsOf:migrationURL,ofType:"app.orator.presentation")
     guard migrated.deck == packageDeck else { fatalError("On-disk package migration lost content") }; try FileManager.default.removeItem(at:migrationURL)
     var backgroundFinished=false

@@ -6,7 +6,9 @@ import FoundationXML
 extension PowerPoint {
     static func timingXML(_ slide: Slide,ids: [UUID:Int],width: Double,height: Double) -> String {
         let schedule=AnimationEngine.schedule(slide.animations ?? []).filter { ids[$0.animation.objectID] != nil }
-        guard !schedule.isEmpty else { return "" }
+        func allObjects(_ objects: [SlideObject]) -> [SlideObject] { objects.flatMap { [$0]+allObjects($0.children) } }
+        let mediaObjects=allObjects(slide.objects).filter { $0.media != nil && ids[$0.id] != nil }
+        guard !schedule.isEmpty || !mediaObjects.isEmpty else { return "" }
         var nextID=2
         func identifier() -> Int { nextID += 1; return nextID }
         func find(_ id: UUID,in objects: [SlideObject]) -> SlideObject? {
@@ -62,7 +64,12 @@ extension PowerPoint {
             let groupID=identifier(), children=schedule.filter { $0.click == click }.map(effect).joined()
             groups += "<p:par><p:cTn id=\"\(groupID)\" fill=\"hold\"><p:stCondLst><p:cond delay=\"\(click == 0 ? "0" : "indefinite")\"/></p:stCondLst><p:childTnLst>\(children)</p:childTnLst></p:cTn></p:par>"
         }
-        return "<p:timing><p:tnLst><p:par><p:cTn id=\"1\" dur=\"indefinite\" restart=\"never\" nodeType=\"tmRoot\"><p:childTnLst><p:seq concurrent=\"1\" nextAc=\"seek\"><p:cTn id=\"2\" dur=\"indefinite\" nodeType=\"mainSeq\"><p:childTnLst>\(groups)</p:childTnLst></p:cTn><p:prevCondLst><p:cond evt=\"onPrev\" delay=\"0\"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:prevCondLst><p:nextCondLst><p:cond evt=\"onNext\" delay=\"0\"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:nextCondLst></p:seq></p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>"
+        let mediaNodes=mediaObjects.map { object -> String in
+            let media=object.media!, target=ids[object.id]!, kind=object.kind == .video ? "video" : "audio"
+            let condition=media.autoplay ? "<p:cond delay=\"0\"/>" : "<p:cond evt=\"onClick\" delay=\"0\"><p:tgtEl><p:spTgt spid=\"\(target)\"/></p:tgtEl></p:cond>"
+            return "<p:\(kind)><p:cMediaNode vol=\"\(Int((media.volume*100000).rounded()))\" numSld=\"\(media.acrossSlides ? 999 : 1)\" showWhenStopped=\"1\"><p:cTn id=\"\(identifier())\" dur=\"media\" fill=\"hold\"\(media.loop ? " repeatCount=\"indefinite\"" : "")><p:stCondLst>\(condition)</p:stCondLst></p:cTn><p:tgtEl><p:spTgt spid=\"\(target)\"/></p:tgtEl></p:cMediaNode></p:\(kind)>"
+        }.joined()
+        return "<p:timing><p:tnLst><p:par><p:cTn id=\"1\" dur=\"indefinite\" restart=\"never\" nodeType=\"tmRoot\"><p:childTnLst><p:seq concurrent=\"1\" nextAc=\"seek\"><p:cTn id=\"2\" dur=\"indefinite\" nodeType=\"mainSeq\"><p:childTnLst>\(groups)</p:childTnLst></p:cTn><p:prevCondLst><p:cond evt=\"onPrev\" delay=\"0\"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:prevCondLst><p:nextCondLst><p:cond evt=\"onNext\" delay=\"0\"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:nextCondLst></p:seq>\(mediaNodes)</p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>"
     }
     static func readAnimations(_ source: XMLElement,ids: [String:UUID],objects: [SlideObject],width: Double,height: Double) -> ([ObjectAnimation],Bool) {
         guard let timing=source.direct("timing") else { return ([],false) }

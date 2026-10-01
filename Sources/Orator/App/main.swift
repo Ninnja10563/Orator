@@ -58,6 +58,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     var officeMaster=SlideMaster(); officeMaster.name="Compatibility master"; var placeholder=SlideObject(kind:.text,name:"Layout title",frame:Rect(100,100,900,100)); placeholder.placeholderKey="title"; let officeLayout=MasterLayout(name:"Linked title",objects:[placeholder]); officeMaster.layouts=[officeLayout]
                     var linked=Slide(); linked.masterID=officeMaster.id; linked.layoutID=officeLayout.id; var title=placeholder.duplicated(offset:Point()); title.text="Master-linked title"; title.layoutLinked=true; title.masterTextLinked=true; linked.objects=[title]
                     compatibility.masters=(compatibility.masters ?? [])+[officeMaster]; compatibility.slides.append(linked)
+                    let audioAsset=Asset(name:"Schema.wav",data:Data("RIFFschemafixture".utf8)); compatibility.assets[audioAsset.id]=audioAsset
+                    var mediaSlide=Slide(), mediaObject=SlideObject(kind:.audio,name:"Media settings",frame:Rect(80,80,400,80)); mediaObject.media=MediaContent(assetID:audioAsset.id); mediaObject.media?.autoplay=true; mediaObject.media?.loop=true; mediaObject.media?.volume=0.7; mediaObject.media?.trimStart=0.5; mediaObject.media?.fadeIn=0.25; mediaSlide.objects=[mediaObject]; compatibility.slides.append(mediaSlide)
                     _=try PowerPoint.export(compatibility,to:url.deletingLastPathComponent().appendingPathComponent("compatibility.pptx"))
                     if let view=editor.window?.contentView?.superview {
                         view.layoutSubtreeIfNeeded()

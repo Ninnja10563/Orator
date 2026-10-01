@@ -100,9 +100,10 @@ public enum PowerPoint {
                 rels += "<Relationship Id=\"\(embed)\" Type=\"http://schemas.microsoft.com/office/2007/relationships/media\" Target=\"../media/\(xml(filename))\"/>"
                 let poster=media.posterAssetID.flatMap { deck.assets[$0]?.data } ?? Data(base64Encoded:"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")!
                 let posterName="poster\(n)_\(id).png"; try poster.write(to:root.appendingPathComponent("ppt/media/"+posterName)); rels += relationship(posterID,"image","../media/"+posterName)
-                warnings.insert("Audio/video assets are embedded. Orator trim, fade, loop and automatic playback settings are not exported; configure playback in PowerPoint.")
+                if media.trimEnd != nil { warnings.insert("Media end-trim positions require adjustment in PowerPoint. Start trim, fades, volume, looping and playback triggers are exported.") }
+                let playback="<p14:trim st=\"\(media.trimStart*1000)\"/><p14:fade in=\"\(media.fadeIn*1000)\" out=\"\(media.fadeOut*1000)\"/>"
                 let kind=o.kind == .video ? "videoFile" : "audioFile"
-                return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(xml(o.name))\"><a:hlinkClick r:id=\"\" action=\"ppaction://media\"/></p:cNvPr><p:cNvPicPr/><p:nvPr><a:\(kind) r:link=\"\(rid)\"/><p:extLst><p:ext uri=\"{DAA4B4D4-6D71-4841-9C94-3DE7FCFB9230}\"><p14:media xmlns:p14=\"http://schemas.microsoft.com/office/powerpoint/2010/main\" r:embed=\"\(embed)\"/></p:ext></p:extLst></p:nvPr></p:nvPicPr><p:blipFill><a:blip r:embed=\"\(posterID)\"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>\(xfrm(o))<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
+                return "<p:pic><p:nvPicPr><p:cNvPr id=\"\(id)\" name=\"\(xml(o.name))\"><a:hlinkClick r:id=\"\" action=\"ppaction://media\"/></p:cNvPr><p:cNvPicPr/><p:nvPr><a:\(kind) r:link=\"\(rid)\"/><p:extLst><p:ext uri=\"{DAA4B4D4-6D71-4841-9C94-3DE7FCFB9230}\"><p14:media xmlns:p14=\"http://schemas.microsoft.com/office/powerpoint/2010/main\" r:embed=\"\(embed)\">\(playback)</p14:media></p:ext></p:extLst></p:nvPr></p:nvPicPr><p:blipFill><a:blip r:embed=\"\(posterID)\"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>\(xfrm(o))<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
             }
             if let chart=o.chart, o.kind == .chart {
                 let name="chart\(n)_\(id)", rid="rIdChart\(id)"
