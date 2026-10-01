@@ -14,10 +14,14 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     let navigationPane=SurfaceView()
     let notesPane=SurfaceView()
     var editingMasterID: UUID?
+    var editingLayoutID: UUID?
     var selectedSlideID: UUID
     var currentSlide: Slide {
-        if let id=editingMasterID, let master=presentation.deck.masters?.first(where: { $0.id == id }) { return master.slide }
-        return presentation.deck.slides.first { $0.id == selectedSlideID } ?? presentation.deck.slides[0]
+        if let id=editingMasterID, let master=presentation.deck.masters?.first(where: { $0.id == id }) {
+            if let layout=master.layouts.first(where: { $0.id == editingLayoutID }) { var slide=Slide(); slide.id=layout.id; slide.title=layout.name; slide.objects=layout.objects; slide.masterID=master.id; return slide }
+            return master.slide
+        }
+        return presentation.deck.resolvedContent(presentation.deck.slides.first { $0.id == selectedSlideID } ?? presentation.deck.slides[0])
     }
     var presenter: PresenterController?
     var toolWindows: [NSWindowController]=[]
@@ -123,7 +127,8 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     func commit(_ slide: Slide, name: String) {
         guard slide != currentSlide else { return }
         if let id=editingMasterID, var masters=presentation.deck.masters, let i=masters.firstIndex(where: { $0.id == id }) {
-            masters[i].objects=slide.objects; masters[i].background=slide.background; masters[i].name=slide.title
+            if let layout=masters[i].layouts.firstIndex(where: { $0.id == editingLayoutID }) { masters[i].layouts[layout].objects=slide.objects; masters[i].layouts[layout].name=slide.title }
+            else { masters[i].objects=slide.objects; masters[i].background=slide.background; masters[i].name=slide.title }
             presentation.perform(.setMasters(masters),named:name)
         } else { presentation.perform(.replaceSlide(slide),named:name) }
     }
@@ -135,7 +140,7 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     func formatText(_ name: String, _ mutate: (inout TextStyle) -> Void) {
         if canvas.formatTextSelection(name,mutate:mutate) { return }
         mutateSelection(name) { object in
-            mutate(&object.textStyle)
+            object.masterTextLinked=false; mutate(&object.textStyle)
             if var runs=object.textRuns { for i in runs.indices { mutate(&runs[i].style) }; object.textRuns=runs }
         }
     }
@@ -145,8 +150,9 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     func numberOfRows(in tableView: NSTableView) -> Int { presentation.deck.slides.count }
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let slide=presentation.deck.slides[row], cell=NSTableCellView(); let image=NSImageView(); image.imageScaling = .scaleProportionallyUpOrDown
-        if let cached=thumbnails[slide.id], cached.0 == slide, cached.1 == presentation.deck.theme { image.image=cached.2 }
-        else { let thumbnail=SlideRenderer.shared.thumbnail(slide:slide,deck:presentation.deck,size:NSSize(width:240,height:135)); thumbnails[slide.id]=(slide,presentation.deck.theme,thumbnail); image.image=thumbnail }
+        let rendered=presentation.deck.resolved(slide)
+        if let cached=thumbnails[slide.id], cached.0 == rendered, cached.1 == presentation.deck.theme { image.image=cached.2 }
+        else { let thumbnail=SlideRenderer.shared.thumbnail(slide:slide,deck:presentation.deck,size:NSSize(width:240,height:135)); thumbnails[slide.id]=(rendered,presentation.deck.theme,thumbnail); image.image=thumbnail }
         image.translatesAutoresizingMaskIntoConstraints=false
         let section=(row == 0 || presentation.deck.slides[row-1].section != slide.section) && !slide.section.isEmpty ? slide.section.uppercased()+" · " : ""
         let title=NSTextField(labelWithString:"\(section)\(row+1)  \(slide.skipped ? "[Skipped] " : "")\(slide.title)"); title.font = .systemFont(ofSize:11); title.lineBreakMode = .byTruncatingTail; title.translatesAutoresizingMaskIntoConstraints=false
@@ -157,7 +163,7 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     func tableViewSelectionDidChange(_ notification: Notification) {
         guard !refreshing, navigator.selectedRow >= 0 else { return }
         let nextID=presentation.deck.slides[navigator.selectedRow].id
-        canvas.finishText(); editingMasterID=nil; selectedSlideID=nextID; canvas.selected=[]; notes.string=currentSlide.notes; refresh()
+        canvas.finishText(); editingMasterID=nil; editingLayoutID=nil; selectedSlideID=nextID; canvas.selected=[]; notes.string=currentSlide.notes; refresh()
     }
     func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? {
         let item=NSPasteboardItem(); item.setString(presentation.deck.slides[row].id.uuidString,forType:slideDrag); return item
@@ -232,15 +238,14 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
         do { let data=try Data(contentsOf:url); guard let image=NSImage(data:data), image.size.width > 0, image.size.height > 0 else { throw FormatError.invalid("unsupported image") }
             let asset=Asset(name:url.lastPathComponent,data:data); let scale=min(1,800/image.size.width,500/image.size.height)
             var object=SlideObject(kind:.image,name:url.deletingPathExtension().lastPathComponent,frame:Rect(160,120,image.size.width*scale,image.size.height*scale)); object.image=ImageContent(assetID:asset.id)
-            var slide=currentSlide; slide.objects.append(object)
-            presentation.perform(.batch([.putAsset(asset),.replaceSlide(slide)]),named:"Insert Image"); canvas.selected=[object.id]
+            insertObject(object,assets:[asset],on:currentSlide.id,name:"Insert Image")
         } catch { presentation.presentError(error) }
     }
     func insertImages(from pasteboard: NSPasteboard) -> Bool {
         if let urls=pasteboard.readObjects(forClasses:[NSURL.self],options:[.urlReadingFileURLsOnly:true]) as? [URL], !urls.isEmpty { for url in urls { loadImage(url) }; return true }
         if let image=NSImage(pasteboard:pasteboard), let data=image.tiffRepresentation {
             let asset=Asset(name:"Pasted Image",data:data); var o=SlideObject(kind:.image,name:"Image",frame:Rect(160,120,600,400)); o.image=ImageContent(assetID:asset.id)
-            var slide=currentSlide; slide.objects.append(o); presentation.perform(.batch([.putAsset(asset),.replaceSlide(slide)]),named:"Paste Image"); canvas.selected=[o.id]; return true
+            insertObject(o,assets:[asset],on:currentSlide.id,name:"Paste Image"); return true
         }; return false
     }
     @objc func insertTable(_ sender: Any?) { var o=SlideObject(kind:.table,name:"Table",frame:Rect(140,180,1000,360)); o.table=TableContent(); insert(o) }

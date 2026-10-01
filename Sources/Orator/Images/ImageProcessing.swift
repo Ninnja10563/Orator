@@ -30,7 +30,7 @@ final class ImageProcessingController: NSWindowController {
                 guard let editor=editor else { self?.close(); return }
                 let asset=Asset(name:"Foreground.png",data:result)
                 // The processing request belongs to the captured object, never the later selection.
-                let current=editor.presentation.deck.slides.first { $0.id == slideID }?.objects.first { $0.id == object.id } ?? editor.presentation.deck.masters?.first { $0.id == slideID }?.objects.first { $0.id == object.id }
+                let current=editor.editableSlide(slideID)?.objects.first { $0.id == object.id }
                 guard current?.image?.assetID == object.image?.assetID else { self?.close(); return }
                 editor.presentation.undoManager?.beginUndoGrouping()
                 editor.presentation.perform(.putAsset(asset),named:"Remove Background")

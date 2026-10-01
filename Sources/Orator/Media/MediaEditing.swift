@@ -7,6 +7,7 @@ import PresentationCore
 extension EditorWindowController {
     @objc func insertMedia(_ sender: Any?) {
         canvas.finishText()
+        let slideID=currentSlide.id
         let panel=NSOpenPanel(); panel.allowedContentTypes=[.movie,.audio]
         panel.beginSheetModal(for:window!) { [weak self] response in
             guard response == .OK, let url=panel.url, let self=self else { return }
@@ -18,21 +19,21 @@ extension EditorWindowController {
                     let asset=Asset(name:url.lastPathComponent,data:data)
                     var object=SlideObject(kind:tracks.isEmpty ? .audio : .video,name:url.deletingPathExtension().lastPathComponent,frame:tracks.isEmpty ? Rect(160,500,480,72) : Rect(160,120,960,540))
                     object.media=MediaContent(assetID:asset.id)
-                    var edits: [Edit]=[.putAsset(asset)]
+                    var assets=[asset]
                     if !tracks.isEmpty {
                         let generator=AVAssetImageGenerator(asset:avAsset); generator.appliesPreferredTrackTransform=true
                         if let (image,_)=try? await generator.image(at:.zero), let png=NSBitmapImageRep(cgImage:image).representation(using:.png,properties:[:]) {
-                            let poster=Asset(name:"Poster.png",data:png); edits.append(.putAsset(poster)); object.media?.posterAssetID=poster.id
+                            let poster=Asset(name:"Poster.png",data:png); assets.append(poster); object.media?.posterAssetID=poster.id
                         }
                     }
-                    var slide=self.currentSlide; slide.objects.append(object); edits.append(.replaceSlide(slide))
-                    self.presentation.perform(.batch(edits),named:"Insert Media"); self.canvas.selected=[object.id]
+                    self.insertObject(object,assets:assets,on:slideID,name:"Insert Media")
                 } catch { self.presentation.presentError(error) }
             }
         }
     }
     @objc func mediaSettings(_ sender: Any?) {
         guard let object=currentSlide.objects.first(where: { canvas.selected.contains($0.id) }), let media=object.media else { return }
+        let slideID=currentSlide.id
         let alert=NSAlert(); alert.messageText="Playback settings"
         let stack=NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing=8; stack.frame=NSRect(x:0,y:0,width:360,height:300)
         var fields: [String:NSTextField]=[:]
@@ -49,7 +50,7 @@ extension EditorWindowController {
             guard fields.values.allSatisfy({ Double($0.stringValue)?.isFinite == true }) else { return }
             let start=max(0,fields["Trim start (seconds)"]!.doubleValue), end=fields["Trim end (0 = end)"]!.doubleValue
             guard end <= 0 || end > start else { self.presentation.presentError(FormatError.invalid("trim end must follow trim start")); return }
-            self.mutateSelection("Media Settings") { object in
+            self.modifyObject(object.id,on:slideID,name:"Media Settings") { object in
                 object.media?.trimStart=start; object.media?.trimEnd=end > 0 ? end : nil
                 object.media?.volume=min(1,max(0,fields["Volume (%)"]!.doubleValue/100))
                 object.media?.fadeIn=max(0,fields["Fade in (seconds)"]!.doubleValue); object.media?.fadeOut=max(0,fields["Fade out (seconds)"]!.doubleValue)

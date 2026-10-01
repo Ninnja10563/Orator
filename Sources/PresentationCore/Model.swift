@@ -99,6 +99,8 @@ public struct SlideObject: Codable, Equatable, Identifiable, Sendable {
     public var textStyle = TextStyle()
     public var textRuns: [TextRun]? = nil
     public var placeholderKey: String? = nil
+    public var layoutLinked: Bool? = nil
+    public var masterTextLinked: Bool? = nil
     public var motionID: UUID? = nil
     public var animationClip: Rect? = nil
     public var shape: ShapeKind = .rectangle
@@ -116,6 +118,7 @@ public struct SlideObject: Codable, Equatable, Identifiable, Sendable {
     }
     public mutating func transform(to newFrame: Rect) {
         let old = frame
+        if old != newFrame { layoutLinked=false }
         let sx = newFrame.width / max(old.width,0.001), sy = newFrame.height / max(old.height,0.001)
         for i in children.indices {
             let f = children[i].frame

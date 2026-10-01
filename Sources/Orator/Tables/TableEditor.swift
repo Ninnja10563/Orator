@@ -4,13 +4,14 @@ import PresentationCore
 final class TableEditor: NSWindowController, NSTableViewDataSource, NSTableViewDelegate {
     weak var editor: EditorWindowController?
     let objectID: UUID
+    let slideID: UUID
     let grid=NSTableView()
     let rowHeight=NSTextField(string:"40"), padding=NSTextField(string:"10")
     let fill=NSColorWell(), vertical=NSPopUpButton()
     var rebuilding=false
     var resizeTimer: Timer?
     init(editor: EditorWindowController,object: SlideObject) {
-        self.editor=editor; objectID=object.id
+        self.editor=editor; objectID=object.id; slideID=editor.currentSlide.id
         let window=NSWindow(contentRect:NSRect(x:0,y:0,width:880,height:520),styleMask:[.titled,.closable,.resizable],backing:.buffered,defer:false); window.title="Edit Table"; window.isReleasedWhenClosed=false
         super.init(window:window); window.center()
         let root=SurfaceView(frame:window.contentView!.bounds); root.autoresizingMask=[.width,.height]; window.contentView=root
@@ -24,10 +25,9 @@ final class TableEditor: NSWindowController, NSTableViewDataSource, NSTableViewD
         rebuild()
     }
     required init?(coder: NSCoder) { fatalError() }
-    var content: TableContent? { editor?.currentSlide.objects.first { $0.id == objectID }?.table }
+    var content: TableContent? { editor?.editableSlide(slideID)?.objects.first { $0.id == objectID }?.table }
     func save(_ content: TableContent,name: String,reload: Bool = true) {
-        guard let editor=editor, let index=editor.currentSlide.objects.firstIndex(where: { $0.id == objectID }) else { return }
-        var slide=editor.currentSlide; slide.objects[index].table=content; editor.commit(slide,name:name)
+        editor?.modifyObject(objectID,on:slideID,name:name) { $0.table=content }
         if reload { rebuild() }
     }
     func rebuild() {

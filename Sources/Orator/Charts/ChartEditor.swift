@@ -4,10 +4,11 @@ import PresentationCore
 final class ChartEditor: NSWindowController, NSTableViewDataSource, NSTableViewDelegate {
     weak var editor: EditorWindowController?
     let objectID: UUID
+    let slideID: UUID
     let grid=NSTableView(), title=NSTextField(), category=NSTextField(), value=NSTextField()
     let legend=NSButton(checkboxWithTitle:"Legend",target:nil,action:nil), lines=NSButton(checkboxWithTitle:"Gridlines",target:nil,action:nil), labels=NSButton(checkboxWithTitle:"Data labels",target:nil,action:nil)
     init(editor: EditorWindowController,object: SlideObject) {
-        self.editor=editor; objectID=object.id
+        self.editor=editor; objectID=object.id; slideID=editor.currentSlide.id
         let window=NSWindow(contentRect:NSRect(x:0,y:0,width:820,height:540),styleMask:[.titled,.closable,.resizable],backing:.buffered,defer:false); window.title="Chart Data"; window.isReleasedWhenClosed=false
         super.init(window:window); window.center()
         let root=NSStackView(); root.orientation = .vertical; root.spacing=12; root.edgeInsets=NSEdgeInsets(top:16,left:16,bottom:16,right:16); root.frame=window.contentView!.bounds; root.autoresizingMask=[.width,.height]; window.contentView=root
@@ -24,8 +25,8 @@ final class ChartEditor: NSWindowController, NSTableViewDataSource, NSTableViewD
         rebuild()
     }
     required init?(coder: NSCoder) { fatalError() }
-    var content: ChartContent? { editor?.currentSlide.objects.first { $0.id == objectID }?.chart }
-    func save(_ chart: ChartContent,_ name: String,reload: Bool = true) { guard let editor=editor, let i=editor.currentSlide.objects.firstIndex(where: { $0.id == objectID }) else { return }; var slide=editor.currentSlide; slide.objects[i].chart=chart; editor.commit(slide,name:name); if reload { rebuild() } }
+    var content: ChartContent? { editor?.editableSlide(slideID)?.objects.first { $0.id == objectID }?.chart }
+    func save(_ chart: ChartContent,_ name: String,reload: Bool = true) { editor?.modifyObject(objectID,on:slideID,name:name) { $0.chart=chart }; if reload { rebuild() } }
     func rebuild() { for col in grid.tableColumns { grid.removeTableColumn(col) }; guard let chart=content else { return }; for (i,name) in (["Category"]+chart.dataSeries.map(\.name)).enumerated() { let column=NSTableColumn(identifier:.init(String(i))); column.title=name; column.isEditable=true; column.width=150; grid.addTableColumn(column) }; grid.reloadData() }
     func numberOfRows(in tableView: NSTableView) -> Int { content?.labels.count ?? 0 }
     func tableView(_ tableView: NSTableView,objectValueFor column: NSTableColumn?,row: Int) -> Any? { guard let chart=content, chart.labels.indices.contains(row), let c=Int(column?.identifier.rawValue ?? "") else { return nil }; if c == 0 { return chart.labels[row] }; guard chart.dataSeries.indices.contains(c-1) else { return nil }; return chart.dataSeries[c-1].values[row] }

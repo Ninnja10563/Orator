@@ -128,3 +128,18 @@ extension AdvancedTests {
         let listing=try PowerPoint.run("/usr/bin/unzip",["-Z1",url.path]); XCTAssertTrue(String(decoding:listing,as:UTF8.self).contains("ppt/embeddings/chart1_2.xlsx"))
     }
 }
+
+extension AdvancedTests {
+    func testLayoutInheritanceKeepsContentAndLocalGeometryOverrides() throws {
+        var deck=Presentation(); var template=SlideObject(kind:.text,name:"Title",frame:Rect(40,40,900,100)); template.placeholderKey="title"
+        let layout=MasterLayout(name:"Title",objects:[template]); deck.masters?[0].layouts=[layout]; deck.slides[0].layoutID=layout.id
+        deck.slides[0].objects[0].placeholderKey="title"; deck.slides[0].objects[0].layoutLinked=true
+        let text=deck.slides[0].objects[0].text
+        XCTAssertEqual(deck.resolvedContent(deck.slides[0]).objects[0].frame,template.frame); XCTAssertEqual(deck.resolvedContent(deck.slides[0]).objects[0].text,text)
+        deck.slides[0].objects[0].transform(to:Rect(200,200,300,100))
+        XCTAssertEqual(deck.resolvedContent(deck.slides[0]).objects[0].frame.x,200)
+        deck.slides[0].objects[0].masterTextLinked=true; deck.masters?[0].titleFont.size=66
+        XCTAssertEqual(deck.resolvedContent(deck.slides[0]).objects[0].textStyle.size,66)
+        try PresentationFile.validate(deck)
+    }
+}
