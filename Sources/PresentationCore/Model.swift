@@ -73,6 +73,12 @@ public struct ChartContent: Codable, Equatable, Sendable {
     public var kind: ChartKind = .column
     public var labels = ["Q1", "Q2", "Q3", "Q4"]
     public var values: [Double] = [24, 38, 31, 52]
+    public var series: [ChartSeries]? = nil
+    public var showLegend: Bool? = nil
+    public var showGridlines: Bool? = nil
+    public var showDataLabels: Bool? = nil
+    public var categoryAxisTitle: String? = nil
+    public var valueAxisTitle: String? = nil
     public var title = "Results"
     public init() {}
 }

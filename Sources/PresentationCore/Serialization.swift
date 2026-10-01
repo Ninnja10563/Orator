@@ -61,7 +61,9 @@ public enum PresentationFile {
                     let c=image.crop
                     guard [c.x,c.y,c.width,c.height].allSatisfy(\.isFinite), c.x >= 0, c.y >= 0, c.width > 0, c.height > 0, c.maxX <= 1.00001, c.maxY <= 1.00001 else { throw FormatError.invalid("invalid image crop") }
                 }
-                if let chart=o.chart { guard chart.labels.count == chart.values.count, chart.values.count <= 10000, chart.values.allSatisfy({ $0.isFinite && abs($0) <= 1e12 }) else { throw FormatError.invalid("invalid chart data") } }
+                if let chart=o.chart {
+                    guard chart.labels.count == chart.values.count, chart.values.count <= 10000, chart.dataSeries.count <= 32, chart.values.allSatisfy({ $0.isFinite && abs($0) <= 1e12 }), chart.dataSeries.allSatisfy({ $0.values.count == chart.labels.count && $0.values.allSatisfy({ $0.isFinite && abs($0) <= 1e12 }) && ($0.color.map(validColor) ?? true) }) else { throw FormatError.invalid("invalid chart data") }
+                }
                 try objects(o.children,depth:depth+1)
             }
         }

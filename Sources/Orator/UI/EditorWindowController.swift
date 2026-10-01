@@ -319,25 +319,6 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     @objc func editData(_ sender: Any?) {
         guard let object=currentSlide.objects.first(where: { canvas.selected.contains($0.id) }), object.kind == .table || object.kind == .chart else { return }
         if object.kind == .table { let panel=TableEditor(editor:self,object:object); toolWindows.append(panel); panel.showWindow(nil); return }
-        let alert=NSAlert(); alert.messageText=object.kind == .table ? "Edit table" : "Edit chart data"
-        alert.informativeText=object.kind == .table ? "Separate columns with tabs and rows with new lines. Adding or removing lines changes the table size." : "One category and value per line, separated by a tab."
-        let scroll=NSScrollView(frame:NSRect(x:0,y:0,width:460,height:240)); scroll.hasVerticalScroller=true; let text=NSTextView(frame:scroll.bounds); text.isRichText=false; text.font = .monospacedSystemFont(ofSize:13,weight:.regular); scroll.documentView=text
-        if let table=object.table { text.string=table.cells.map { $0.joined(separator:"\t") }.joined(separator:"\n") }
-        if let chart=object.chart { text.string=zip(chart.labels,chart.values).map { "\($0)\t\($1)" }.joined(separator:"\n") }
-        alert.accessoryView=scroll; alert.addButton(withTitle:"Apply"); alert.addButton(withTitle:"Cancel")
-        alert.beginSheetModal(for:window!) { [weak self] response in
-            guard response == .alertFirstButtonReturn, let self=self else { return }
-            let rows=text.string.components(separatedBy:.newlines).filter { !$0.isEmpty }.map { $0.components(separatedBy:"\t") }
-            guard !rows.isEmpty else { return }
-            var slide=self.currentSlide; guard let i=slide.objects.firstIndex(where: { $0.id == object.id }) else { return }
-            if object.kind == .table {
-                let width=rows.map(\.count).max() ?? 1
-                guard rows.count <= 1000, width <= 100 else { self.presentation.presentError(FormatError.invalid("tables support up to 1,000 rows and 100 columns")); return }
-                slide.objects[i].table?.cells=rows.map { $0+Array(repeating:"",count:width-$0.count) }
-            } else {
-                guard rows.count <= 10000, rows.allSatisfy({ $0.count == 2 && Double($0[1]).map { $0.isFinite && abs($0) <= 1e12 } == true }) else { self.presentation.presentError(FormatError.invalid("each chart row needs a category, a tab, and a finite number")); return }
-                slide.objects[i].chart?.labels=rows.map { $0[0] }; slide.objects[i].chart?.values=rows.compactMap { Double($0[1]) }
-            }; self.commit(slide,name:"Edit Data")
-        }
+        let panel=ChartEditor(editor:self,object:object); toolWindows.append(panel); panel.showWindow(nil)
     }
 }
