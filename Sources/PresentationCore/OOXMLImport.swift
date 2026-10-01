@@ -132,7 +132,8 @@ extension PowerPoint {
                             object.media?.trimStart=(settings.direct("trim")?.number("st") ?? 0)/1000
                             object.media?.fadeIn=(settings.direct("fade")?.number("in") ?? 0)/1000
                             object.media?.fadeOut=(settings.direct("fade")?.number("out") ?? 0)/1000
-                            if (settings.direct("trim")?.number("end") ?? 0) > 0 { warnings.insert("A media end-trim offset requires adjustment after import.") }
+                            let tail=(settings.direct("trim")?.number("end") ?? 0)/1000
+                            if tail > 0 { object.media?.trimEndOffset=tail }
                         }
                     }
                 }

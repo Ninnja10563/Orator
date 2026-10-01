@@ -65,7 +65,7 @@ public enum PresentationFile {
                     for merge in table.merges ?? [] { try checked.merge(merge) }
                 }
                 if let media=o.media {
-                    guard deck.assets[media.assetID] != nil, media.posterAssetID.map({ deck.assets[$0] != nil }) ?? true, media.trimStart.isFinite, media.trimStart >= 0, media.trimEnd.map({ $0.isFinite && $0 > media.trimStart }) ?? true, media.volume.isFinite, (0...1).contains(media.volume), media.fadeIn.isFinite, media.fadeOut.isFinite, media.fadeIn >= 0, media.fadeOut >= 0 else { throw FormatError.invalid("invalid media settings") }
+                    guard media.sourceDuration.map({ $0.isFinite && $0 > 0 }) ?? true, media.trimEndOffset.map({ $0.isFinite && $0 >= 0 }) ?? true, deck.assets[media.assetID] != nil, media.posterAssetID.map({ deck.assets[$0] != nil }) ?? true, media.trimStart.isFinite, media.trimStart >= 0, media.trimEnd.map({ $0.isFinite && $0 > media.trimStart }) ?? true, media.volume.isFinite, (0...1).contains(media.volume), media.fadeIn.isFinite, media.fadeOut.isFinite, media.fadeIn >= 0, media.fadeOut >= 0 else { throw FormatError.invalid("invalid media settings") }
                 }
                 if let image=o.image {
                     guard deck.assets[image.assetID] != nil, image.originalAssetID.map({ deck.assets[$0] != nil }) ?? true else { throw FormatError.invalid("missing image asset") }

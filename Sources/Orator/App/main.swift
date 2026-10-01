@@ -161,7 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func importPPTX(_ sender: Any?) {
         let panel=NSOpenPanel(); panel.allowedContentTypes=[.init(filenameExtension:"pptx")!]
         guard panel.runModal() == .OK, let url=panel.url else { return }
-        DocumentTask.run(title:"Importing PowerPoint…",window:NSApp.keyWindow,operation: { try PowerPoint.importDeck(from:url) },completion: { result in
+        DocumentTask.run(title:"Importing PowerPoint…",window:NSApp.keyWindow,operation: { var result=try PowerPoint.importDeck(from:url); try MediaMetadata.resolve(&result.deck); return result },completion: { result in
             switch result {
             case .success(let result):
                 let document=PresentationDocument(); document.deck=result.deck; NSDocumentController.shared.addDocument(document); document.makeWindowControllers(); document.showWindows(); document.updateChangeCount(.changeDone)

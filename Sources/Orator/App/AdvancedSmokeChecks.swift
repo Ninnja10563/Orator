@@ -127,6 +127,11 @@ private func checkMediaPlayback() throws {
     wav.append(Data("RIFF".utf8)); word(UInt32(36+count),4); wav.append(Data("WAVEfmt ".utf8)); word(16,4); word(1,2); word(1,2); word(8000,4); word(16000,4); word(2,2); word(16,2); wav.append(Data("data".utf8)); word(UInt32(count),4); wav.append(Data(repeating:0,count:count))
     var deck=Presentation(); let asset=Asset(name:"Playback.wav",data:wav); deck.assets[asset.id]=asset
     var object=SlideObject(kind:.audio,name:"Playback",frame:Rect(0,0,640,72)); object.media=MediaContent(assetID:asset.id); object.media?.volume=0; object.media?.trimEnd=0.8
+    deck.slides[0].objects=[object]; try MediaMetadata.resolve(&deck)
+    let url=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".pptx")
+    defer { try? FileManager.default.removeItem(at:url) }
+    _=try PowerPoint.export(deck,to:url); var restored=try PowerPoint.importDeck(from:url).deck; try MediaMetadata.resolve(&restored)
+    guard let end=restored.slides[0].objects[0].media?.trimEnd, abs(end-0.8) < 0.001 else { fatalError("Media end trim was not preserved through PowerPoint") }
     var slide=Slide(); slide.objects=[object]
     let parent=NSView(frame:NSRect(x:0,y:0,width:640,height:360)), playback=MediaPlayback()
     try playback.install(slide:slide,deck:deck,in:parent,rect:parent.bounds,forceAutoplay:true)

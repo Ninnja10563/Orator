@@ -19,6 +19,8 @@ extension EditorWindowController {
                     let asset=Asset(name:url.lastPathComponent,data:data)
                     var object=SlideObject(kind:tracks.isEmpty ? .audio : .video,name:url.deletingPathExtension().lastPathComponent,frame:tracks.isEmpty ? Rect(160,500,480,72) : Rect(160,120,960,540))
                     object.media=MediaContent(assetID:asset.id)
+                    let duration=try await avAsset.load(.duration).seconds
+                    if duration.isFinite && duration > 0 { object.media?.sourceDuration=duration }
                     var assets=[asset]
                     if !tracks.isEmpty {
                         let generator=AVAssetImageGenerator(asset:avAsset); generator.appliesPreferredTrackTransform=true
@@ -51,7 +53,7 @@ extension EditorWindowController {
             let start=max(0,fields["Trim start (seconds)"]!.doubleValue), end=fields["Trim end (0 = end)"]!.doubleValue
             guard end <= 0 || end > start else { self.presentation.presentError(FormatError.invalid("trim end must follow trim start")); return }
             self.modifyObject(object.id,on:slideID,name:"Media Settings") { object in
-                object.media?.trimStart=start; object.media?.trimEnd=end > 0 ? end : nil
+                object.media?.trimEndOffset=nil; object.media?.trimStart=start; object.media?.trimEnd=end > 0 ? end : nil
                 object.media?.volume=min(1,max(0,fields["Volume (%)"]!.doubleValue/100))
                 object.media?.fadeIn=max(0,fields["Fade in (seconds)"]!.doubleValue); object.media?.fadeOut=max(0,fields["Fade out (seconds)"]!.doubleValue)
                 object.media?.autoplay=autoplay.state == .on; object.media?.loop=loop.state == .on; object.media?.acrossSlides=background.state == .on && object.kind == .audio

@@ -27,6 +27,7 @@ extension EditorWindowController {
 enum PowerPointExporter {
     static func export(_ snapshot: Presentation,to url: URL) throws -> [String] {
         var deck=snapshot
+        try MediaMetadata.resolve(&deck)
         let renderer=SlideRenderer()
         func prepare(_ originals: [SlideObject]) -> [SlideObject] {
             originals.map { sourceObject in
