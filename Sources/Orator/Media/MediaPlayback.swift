@@ -17,6 +17,7 @@ final class MediaForegroundView: NSView {
         SlideRenderer.shared.draw(object:object,deck:deck)
     }
 }
+final class PlaybackLifetime { var active=true; var paused=false; var began=false; var autoplay=false }
 final class MediaPlayback {
     struct Entry {
         var objectID: UUID
@@ -27,6 +28,7 @@ final class MediaPlayback {
         var boundaryToken: Any?
         var fadeToken: Any?
         var wasPlaying=false
+        var lifetime: PlaybackLifetime
     }
     private var entries: [Entry]=[]
     private var foreground: [MediaForegroundView]=[]
@@ -53,24 +55,26 @@ final class MediaPlayback {
             view.wantsLayer=true; view.layer?.opacity=Float(object.opacity); view.setAccessibilityLabel(object.name)
             view.frame=NSRect(x:rect.minX+object.frame.x*rect.width/deck.width,y:rect.minY+object.frame.y*rect.height/deck.height,width:object.frame.width*rect.width/deck.width,height:object.frame.height*rect.height/deck.height)
             if object.kind == .video || !content.autoplay { parent.addSubview(view) }
+            let lifetime=PlaybackLifetime(); lifetime.autoplay=content.autoplay || forceAutoplay
             func atEnd() {
+                guard lifetime.active, !lifetime.paused else { return }
                 player.pause()
-                if content.loop { player.seek(to:CMTime(seconds:content.trimStart,preferredTimescale:600),toleranceBefore:.zero,toleranceAfter:.zero) { complete in if complete { player.play() } } }
+                if content.loop { player.seek(to:CMTime(seconds:content.trimStart,preferredTimescale:600),toleranceBefore:.zero,toleranceAfter:.zero) { complete in DispatchQueue.main.async { if complete && lifetime.active && !lifetime.paused { player.play() } } } }
             }
             let token=NotificationCenter.default.addObserver(forName:AVPlayerItem.didPlayToEndTimeNotification,object:player.currentItem,queue:.main) { _ in atEnd() }
-            var entry=Entry(objectID:object.id,settings:content,player:player,view:view,endToken:token)
+            var entry=Entry(objectID:object.id,settings:content,player:player,view:view,endToken:token,lifetime:lifetime)
             if let end=content.trimEnd { entry.boundaryToken=player.addBoundaryTimeObserver(forTimes:[NSValue(time:CMTime(seconds:end,preferredTimescale:600))],queue:.main,using:atEnd) }
             if content.fadeIn > 0 || content.fadeOut > 0 {
                 entry.fadeToken=player.addPeriodicTimeObserver(forInterval:CMTime(seconds:0.05,preferredTimescale:600),queue:.main) { time in
                     let elapsed=max(0,time.seconds-content.trimStart)
                     let startGain=content.fadeIn > 0 ? min(1,elapsed/content.fadeIn) : 1
                     let end=content.trimEnd ?? player.currentItem?.duration.seconds ?? .infinity
-                    let endGain=content.fadeOut > 0 ? max(0,min(1,(end-time.seconds)/content.fadeOut)) : 1
+                    let endGain=content.fadeOut > 0 && end.isFinite ? max(0,min(1,(end-time.seconds)/content.fadeOut)) : 1
                     player.volume=Float(content.volume*min(startGain,endGain))
                 }
             }
             entries.append(entry)
-            player.seek(to:CMTime(seconds:content.trimStart,preferredTimescale:600),toleranceBefore:.zero,toleranceAfter:.zero) { complete in if complete && (content.autoplay || forceAutoplay) { player.play() } }
+            player.seek(to:CMTime(seconds:content.trimStart,preferredTimescale:600),toleranceBefore:.zero,toleranceAfter:.zero) { complete in DispatchQueue.main.async { lifetime.began=true; if complete && lifetime.autoplay && lifetime.active && !lifetime.paused { player.play() } } }
         }
     }
     func layout(slide: Slide, deck: Presentation, rect: NSRect) {
@@ -82,13 +86,13 @@ final class MediaPlayback {
         }
         for overlay in foreground { if let object=objects.first(where: { $0.id == overlay.object.id }) { if overlay.object != object || overlay.slideRect != rect { overlay.object=object; overlay.slideRect=rect; overlay.needsDisplay=true } } }
     }
-    func pause() { for i in entries.indices { entries[i].wasPlaying=entries[i].player.rate > 0; entries[i].player.pause() } }
-    func resume() { for entry in entries where entry.wasPlaying { entry.player.play() } }
+    func pause() { for i in entries.indices { entries[i].wasPlaying=entries[i].player.rate > 0 || (!entries[i].lifetime.began && entries[i].lifetime.autoplay); entries[i].lifetime.paused=true; entries[i].player.pause() } }
+    func resume() { for entry in entries { entry.lifetime.paused=false; if entry.wasPlaying { entry.player.play() } } }
     func stop(keepingBackground: Bool = false) {
         for view in foreground { view.removeFromSuperview() }; foreground=[]
         entries=entries.filter { entry in
             if keepingBackground && entry.settings.acrossSlides { return true }
-            entry.player.pause(); entry.view.removeFromSuperview()
+            entry.lifetime.active=false; entry.player.pause(); entry.view.removeFromSuperview()
             if let token=entry.endToken { NotificationCenter.default.removeObserver(token) }
             if let token=entry.boundaryToken { entry.player.removeTimeObserver(token) }
             if let token=entry.fadeToken { entry.player.removeTimeObserver(token) }

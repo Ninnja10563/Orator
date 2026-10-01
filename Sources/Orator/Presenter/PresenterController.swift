@@ -3,10 +3,13 @@ import QuartzCore
 import PresentationCore
 
 final class AudienceView: NSView {
-    var deck=Presentation(); var index=0; var black=false; var pointer: NSPoint?; var laser=false
+    var deck=Presentation(); var index=0; var black=false
+    weak var annotationOverlay: PresenterAnnotationView?
+    var pointer: NSPoint? { didSet { annotationOverlay?.needsDisplay=true } }
+    var laser=false { didSet { annotationOverlay?.needsDisplay=true } }
     enum InkTool { case none, pen, highlighter }
     var inkTool: InkTool = .none
-    var strokes: [(points:[NSPoint],highlight:Bool)]=[]
+    var strokes: [(points:[NSPoint],highlight:Bool)]=[] { didSet { annotationOverlay?.needsDisplay=true } }
     var playbackSlide: Slide?
     var wipeFrom: Slide?
     var wipeProgress: Double=1
@@ -31,6 +34,9 @@ final class AudienceView: NSView {
             SlideRenderer.shared.draw(slide:playbackSlide ?? deck.slides[index],deck:deck,in:r)
             NSGraphicsContext.restoreGraphicsState()
         } else { SlideRenderer.shared.draw(slide:playbackSlide ?? deck.slides[index],deck:deck,in:r) }
+    }
+    func drawAnnotations() {
+        guard !black else { return }
         for stroke in strokes where stroke.points.count > 1 {
             let path=NSBezierPath(); path.move(to:stroke.points[0]); for point in stroke.points.dropFirst() { path.line(to:point) }
             path.lineWidth=stroke.highlight ? 18 : 3; path.lineCapStyle = .round; path.lineJoinStyle = .round
@@ -53,6 +59,16 @@ final class AudienceView: NSView {
     }
     override func mouseMoved(with event: NSEvent) { pointer=convert(event.locationInWindow,from:nil); if laser { needsDisplay=true } }
 }
+final class PresenterAnnotationView: NSView {
+    weak var audience: AudienceView?
+    init(audience: AudienceView) { self.audience=audience; super.init(frame:audience.bounds); autoresizingMask=[.width,.height] }
+    required init?(coder: NSCoder) { fatalError() }
+    override var isFlipped: Bool { true }
+    override func draw(_ dirtyRect: NSRect) { audience?.drawAnnotations() }
+    override func hitTest(_ point: NSPoint) -> NSView? { (audience?.inkTool ?? .none) == .none ? nil : self }
+    override func mouseDown(with event: NSEvent) { audience?.mouseDown(with:event) }
+    override func mouseDragged(with event: NSEvent) { audience?.mouseDragged(with:event) }
+}
 final class AudienceWindow: NSWindow { override var canBecomeKey: Bool { true }; override var canBecomeMain: Bool { true } }
 final class PresenterWindow: NSWindow {
     var onKey: ((UInt16,String) -> Void)?
@@ -68,6 +84,7 @@ final class PresenterController: NSObject, NSWindowDelegate {
     let deck: Presentation
     var index: Int
     let audience=AudienceView()
+    lazy var annotations=PresenterAnnotationView(audience:audience)
     var audienceWindow: NSWindow?
     var console: NSWindow?
     var clock: Timer?, advance: Timer?, visualTimer: Timer?
@@ -95,6 +112,7 @@ final class PresenterController: NSObject, NSWindowDelegate {
         window.level = .normal; window.backgroundColor = .black; window.isReleasedWhenClosed=false; window.delegate=self; window.acceptsMouseMovedEvents=true
         audience.frame=NSRect(origin:.zero,size:screen.frame.size); audience.autoresizingMask=[.width,.height]; audience.wantsLayer=true; audience.deck=deck; audience.index=index
         audience.onKey = { [weak self] code,characters in self?.key(code,characters) }; window.contentView=audience
+        annotations.frame=audience.bounds; audience.annotationOverlay=annotations; audience.addSubview(annotations)
         audienceWindow=window; window.makeKeyAndOrderFront(nil); window.makeFirstResponder(audience)
         if NSScreen.screens.count > 1 { makeConsole() }
         slideStarted=Date(); animationStarted=Date(); visualTimer=Timer.scheduledTimer(withTimeInterval:1.0/60,repeats:true) { [weak self] _ in self?.tick() }
@@ -166,6 +184,7 @@ final class PresenterController: NSObject, NSWindowDelegate {
     func update() {
         if mediaSlideID != deck.slides[index].id {
             do { try media.install(slide:deck.slides[index],deck:deck,in:audience,rect:audienceRect) } catch { NSLog("Media playback failed: %@",error.localizedDescription) }
+            audience.addSubview(annotations,positioned:.above,relativeTo:nil)
             mediaSlideID=deck.slides[index].id
         }
         audience.index=index; tick(); audience.needsDisplay=true; notes.string=deck.slides[index].notes

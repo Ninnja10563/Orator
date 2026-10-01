@@ -38,6 +38,9 @@ public enum PresentationFile {
                       o.style.cornerRadius.isFinite, (0...1_000_000).contains(o.style.cornerRadius),
                       o.textStyle.lineSpacing.isFinite, (0...10000).contains(o.textStyle.lineSpacing),
                       validColor(o.style.stroke), o.style.fill.map(validColor) ?? true, o.textStyle.color.map(validColor) ?? true else { throw FormatError.invalid("object style is outside supported bounds") }
+                if [.video,.audio].contains(o.kind) && o.media == nil { throw FormatError.invalid("media object has no asset reference") }
+                if o.kind == .table && o.table == nil { throw FormatError.invalid("table object has no cells") }
+                if o.kind == .chart && o.chart == nil { throw FormatError.invalid("chart object has no data") }
                 if o.kind == .image && o.image == nil { throw FormatError.invalid("image object has no asset reference") }
                 if let connector=o.connector { guard [connector.start.point.x,connector.start.point.y,connector.end.point.x,connector.end.point.y].allSatisfy({ $0.isFinite && abs($0) <= 1_000_000 }) else { throw FormatError.invalid("invalid connector") } }
                 if let gradient=o.style.gradient { guard validColor(gradient.end), gradient.angle.isFinite, abs(gradient.angle) <= 360000 else { throw FormatError.invalid("invalid gradient") } }
@@ -46,7 +49,7 @@ public enum PresentationFile {
                 if let runs=o.textRuns { try RichText.validate(runs,text:o.text) }
                 if let table=o.table {
                     guard !table.cells.isEmpty, table.cells.count <= 1000, let columns=table.cells.first?.count, (1...100).contains(columns), table.cells.allSatisfy({ $0.count == columns }) else { throw FormatError.invalid("invalid table dimensions") }
-                    for weights in [table.rowHeights,table.columnWidths] { if let weights=weights { guard weights.allSatisfy({ $0.isFinite && $0 > 0 }) else { throw FormatError.invalid("invalid table weights") } } }
+                    for weights in [table.rowHeights,table.columnWidths] { if let weights=weights { guard weights.allSatisfy({ $0.isFinite && $0 > 0 && $0 <= 1_000_000 }) else { throw FormatError.invalid("invalid table weights") } } }
                     guard table.rowHeights.map({ $0.count == table.cells.count }) ?? true, table.columnWidths.map({ $0.count == columns }) ?? true else { throw FormatError.invalid("table weight count mismatch") }
                     for (key,style) in table.styles ?? [:] {
                         let coordinates=key.split(separator:":").compactMap { Int($0) }
@@ -57,7 +60,7 @@ public enum PresentationFile {
                     for merge in table.merges ?? [] { try checked.merge(merge) }
                 }
                 if let media=o.media {
-                    guard deck.assets[media.assetID] != nil, media.trimStart.isFinite, media.trimStart >= 0, media.trimEnd.map({ $0.isFinite && $0 > media.trimStart }) ?? true, media.volume.isFinite, (0...1).contains(media.volume), media.fadeIn.isFinite, media.fadeOut.isFinite, media.fadeIn >= 0, media.fadeOut >= 0 else { throw FormatError.invalid("invalid media settings") }
+                    guard deck.assets[media.assetID] != nil, media.posterAssetID.map({ deck.assets[$0] != nil }) ?? true, media.trimStart.isFinite, media.trimStart >= 0, media.trimEnd.map({ $0.isFinite && $0 > media.trimStart }) ?? true, media.volume.isFinite, (0...1).contains(media.volume), media.fadeIn.isFinite, media.fadeOut.isFinite, media.fadeIn >= 0, media.fadeOut >= 0 else { throw FormatError.invalid("invalid media settings") }
                 }
                 if let image=o.image {
                     guard deck.assets[image.assetID] != nil, image.originalAssetID.map({ deck.assets[$0] != nil }) ?? true else { throw FormatError.invalid("missing image asset") }
@@ -70,7 +73,7 @@ public enum PresentationFile {
                 try objects(o.children,depth:depth+1)
             }
         }
-        for master in deck.masters ?? [] { try unique(master.id); try objects(master.objects,depth:0); for layout in master.layouts { try unique(layout.id); try objects(layout.objects,depth:0) } }
+        for master in deck.masters ?? [] { guard master.background.map(validColor) ?? true else { throw FormatError.invalid("invalid master background") }; try RichText.validateStyle(master.titleFont); try RichText.validateStyle(master.bodyFont); try unique(master.id); try objects(master.objects,depth:0); for layout in master.layouts { try unique(layout.id); try objects(layout.objects,depth:0) } }
         for slide in deck.slides {
             try unique(slide.id)
             guard slide.background.map(validColor) ?? true, slide.transition.duration.isFinite, (0...60).contains(slide.transition.duration),
@@ -78,7 +81,7 @@ public enum PresentationFile {
                   slide.guides.allSatisfy({ $0.position.isFinite && abs($0.position) <= 1_000_000 }) else { throw FormatError.invalid("invalid slide style or timing") }
             let objectIDs=Set(slide.objects.flatMap(\.descendantIDs))
             for animation in slide.animations ?? [] {
-                guard objectIDs.contains(animation.objectID), animation.duration.isFinite, (0...60).contains(animation.duration), animation.delay.isFinite, (0...86400).contains(animation.delay), animation.path.allSatisfy({ $0.x.isFinite && $0.y.isFinite }) else { throw FormatError.invalid("invalid animation") }
+                guard objectIDs.contains(animation.objectID), animation.duration.isFinite, (0...60).contains(animation.duration), animation.delay.isFinite, (0...86400).contains(animation.delay), validColor(animation.targetColor), animation.path.allSatisfy({ $0.x.isFinite && $0.y.isFinite && abs($0.x) <= 1_000_000 && abs($0.y) <= 1_000_000 }) else { throw FormatError.invalid("invalid animation") }
             }
             try objects(slide.objects,depth:0)
         }

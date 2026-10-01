@@ -13,7 +13,7 @@ final class ChartEditor: NSWindowController, NSTableViewDataSource, NSTableViewD
         super.init(window:window); window.center()
         let root=SurfaceStackView(); root.orientation = .vertical; root.spacing=12; root.edgeInsets=NSEdgeInsets(top:16,left:16,bottom:16,right:16); root.frame=window.contentView!.bounds; root.autoresizingMask=[.width,.height]; window.contentView=root
         for (label,field) in [("Title",title),("Category / X axis",category),("Value / Y axis",value)] {
-            let row=NSStackView(views:[NSTextField(labelWithString:label),field]); root.addArrangedSubview(row); field.widthAnchor.constraint(greaterThanOrEqualToConstant:500).isActive=true
+            let name=NSTextField(labelWithString:label); name.widthAnchor.constraint(equalToConstant:112).isActive=true; let row=NSStackView(views:[name,field]); root.addArrangedSubview(row); field.widthAnchor.constraint(greaterThanOrEqualToConstant:500).isActive=true
         }
         let settings=NSStackView(views:[legend,lines,labels,NSButton(title:"Apply Labels",target:self,action:#selector(applySettings))]); root.addArrangedSubview(settings)
         let scroll=NSScrollView(); scroll.hasVerticalScroller=true; scroll.hasHorizontalScroller=true; scroll.borderType = .bezelBorder

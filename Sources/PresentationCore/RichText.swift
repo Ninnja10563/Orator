@@ -24,7 +24,7 @@ public enum RichText {
             guard [color.red,color.green,color.blue,color.alpha].allSatisfy({ $0.isFinite && (0...1).contains($0) }) else { throw FormatError.invalid("invalid text color") }
         }
         if let p=style.paragraph {
-            guard (0...8).contains(p.level), [p.before,p.after,p.indent,p.firstLineIndent].allSatisfy({ $0.isFinite && abs($0) <= 10000 }) else { throw FormatError.invalid("invalid paragraph settings") }
+            guard p.before >= 0, p.after >= 0, (0...8).contains(p.level), [p.before,p.after,p.indent,p.firstLineIndent].allSatisfy({ $0.isFinite && abs($0) <= 10000 }) else { throw FormatError.invalid("invalid paragraph settings") }
         }
     }
     public static func validate(_ runs: [TextRun], text: String) throws {
