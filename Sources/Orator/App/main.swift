@@ -102,6 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item(view,"Enter Full Screen",#selector(NSWindow.toggleFullScreen(_:)),"f",[.command,.control])
         let insert=menu("Insert")
         for (title,selector) in [("Text",#selector(EditorWindowController.addText(_:))),("Shape",#selector(EditorWindowController.insertShape(_:))),("Image…",#selector(EditorWindowController.insertImage(_:))),("Table",#selector(EditorWindowController.insertTable(_:))),("Chart",#selector(EditorWindowController.insertChart(_:)))] { item(insert,title,selector) }
+        item(insert,"Connector",#selector(EditorWindowController.insertConnector(_:)))
         item(insert,"Video / Audio…",#selector(EditorWindowController.insertMedia(_:)))
         let slide=menu("Slide"); item(slide,"Add Slide…",#selector(EditorWindowController.addSlide(_:)),"n",[.command,.shift]); item(slide,"Duplicate Slides",#selector(EditorWindowController.duplicateSlides(_:))); item(slide,"Delete Slides",#selector(EditorWindowController.deleteSlides(_:))); item(slide,"Skip / Include Slide",#selector(EditorWindowController.skipSlide(_:)))
         item(slide,"Copy Slides",#selector(EditorWindowController.copySlides(_:)))
@@ -118,6 +119,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item(slide,"Add Master Footer",#selector(EditorWindowController.addFooter(_:)))
         item(slide,"Animation Timeline…",#selector(EditorWindowController.showAnimations(_:)))
         item(slide,"Comments…",#selector(EditorWindowController.showComments(_:)))
+        item(slide,"Configure Connector…",#selector(EditorWindowController.configureConnector(_:)))
         item(slide,"Object Appearance…",#selector(EditorWindowController.objectAppearance(_:)))
         let arrange=menu("Arrange"); item(arrange,"Group",#selector(EditorWindowController.groupObjects(_:)),"g",[.command,.option]); item(arrange,"Ungroup",#selector(EditorWindowController.ungroupObjects(_:)),"g",[.command,.option,.shift]); item(arrange,"Bring to Front",#selector(EditorWindowController.bringToFront(_:))); item(arrange,"Send to Back",#selector(EditorWindowController.sendToBack(_:))); item(arrange,"Lock / Unlock Selection",#selector(EditorWindowController.toggleLock(_:))); item(arrange,"Unlock All",#selector(EditorWindowController.unlockAll(_:))); arrange.addItem(.separator())
         for (i,title) in ["Align Left","Align Center","Align Right","Align Top","Align Middle","Align Bottom","Distribute Horizontally","Distribute Vertically"].enumerated() { item(arrange,title,#selector(EditorWindowController.alignObjects(_:))); arrange.items.last?.tag=i }

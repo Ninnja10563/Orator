@@ -22,16 +22,16 @@ public struct SlideMaster: Codable, Equatable, Identifiable, Sendable {
 public extension Presentation {
     func master(for slide: Slide) -> SlideMaster? { masters?.first { $0.id == slide.masterID } }
     func resolvedContent(_ slide: Slide) -> Slide {
-        guard let master=master(for:slide) else { return slide }
+        guard let master=master(for:slide) else { return slide.resolvingConnectors() }
         let layout=master.layouts.first { $0.id == slide.layoutID }; var result=slide
         for i in result.objects.indices {
             if result.objects[i].layoutLinked == true, let key=result.objects[i].placeholderKey, let template=layout?.objects.first(where: { $0.placeholderKey == key }) { result.objects[i].transform(to:template.frame); result.objects[i].layoutLinked=true }
             if result.objects[i].masterTextLinked == true { result.objects[i].textStyle=result.objects[i].placeholderKey == "title" ? master.titleFont : master.bodyFont }
-        }; return result
+        }; return result.resolvingConnectors()
     }
     func resolved(_ original: Slide) -> Slide {
         let slide=resolvedContent(original)
-        guard let master=master(for:slide) else { return slide }
+        guard let master=master(for:slide) else { return slide.resolvingConnectors() }
         var resolved=slide
         resolved.background=slide.background ?? master.background
         var inherited=master.objects
@@ -39,6 +39,6 @@ public extension Presentation {
         let overrides=Set(slide.objects.compactMap(\.placeholderKey))
         inherited.removeAll { $0.placeholderKey.map(overrides.contains) ?? false }
         resolved.objects=inherited+slide.objects
-        return resolved
+        return resolved.resolvingConnectors()
     }
 }

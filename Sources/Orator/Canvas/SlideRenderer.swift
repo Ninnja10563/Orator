@@ -58,9 +58,9 @@ final class SlideRenderer {
         switch o.kind {
         case .text: drawRichText(o,rect:r,theme:deck.theme)
         case .shape:
-            let path=shape(o.shape,in:r,radius:o.style.cornerRadius)
+            let path=o.connector.map(connectorPath) ?? shape(o.shape,in:r,radius:o.style.cornerRadius)
             (o.style.fill ?? deck.theme.accent).nsColor.setFill()
-            if ![ShapeKind.line,.arrow,.doubleArrow].contains(o.shape) {
+            if o.connector == nil && ![ShapeKind.line,.arrow,.doubleArrow].contains(o.shape) {
                 if let gradient=o.style.gradient { NSGradient(starting:(o.style.fill ?? deck.theme.accent).nsColor,ending:gradient.end.nsColor)?.draw(in:path,angle:gradient.angle) }
                 else { path.fill() }
             }

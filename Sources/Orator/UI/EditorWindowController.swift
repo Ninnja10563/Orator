@@ -251,7 +251,7 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     @objc func insertTable(_ sender: Any?) { var o=SlideObject(kind:.table,name:"Table",frame:Rect(140,180,1000,360)); o.table=TableContent(); insert(o) }
     @objc func insertChart(_ sender: Any?) { var o=SlideObject(kind:.chart,name:"Chart",frame:Rect(160,120,960,500)); o.chart=ChartContent(); insert(o) }
     @objc func deleteObjects(_ sender: Any?) { canvas.finishText(); var slide=currentSlide; let removed=Set(slide.objects.filter { canvas.selected.contains($0.id) && !$0.locked }.flatMap(\.descendantIDs)); slide.objects.removeAll { removed.contains($0.id) }; slide.animations?.removeAll { removed.contains($0.objectID) }; commit(slide,name:"Delete Objects"); canvas.selected=[] }
-    @objc func duplicateObjects(_ sender: Any?) { canvas.finishText(); var slide=currentSlide; let copies=slide.objects.filter { canvas.selected.contains($0.id) }.map { $0.duplicated() }; slide.objects += copies; commit(slide,name:"Duplicate Objects"); canvas.selected=Set(copies.map(\.id)) }
+    @objc func duplicateObjects(_ sender: Any?) { canvas.finishText(); var slide=currentSlide; let copies=SlideObject.duplicateBatch(slide.objects.filter { canvas.selected.contains($0.id) }); slide.objects += copies; commit(slide,name:"Duplicate Objects"); canvas.selected=Set(copies.map(\.id)) }
     @objc func copyObjects(_ sender: Any?) {
         canvas.finishText(); let objects=currentSlide.objects.filter { canvas.selected.contains($0.id) }; guard !objects.isEmpty else { return }
         let payload=ObjectClipboard(objects:objects,assets:presentation.deck.assets)
@@ -262,7 +262,7 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     @objc func pasteObjects(_ sender: Any?) {
         canvas.finishText()
         if let data=NSPasteboard.general.data(forType:Self.objectPasteboard), let payload=try? JSONDecoder().decode(ObjectClipboard.self,from:data) {
-            var slide=currentSlide; let objects=payload.objects.map { $0.duplicated() }; slide.objects += objects
+            var slide=currentSlide; let objects=SlideObject.duplicateBatch(payload.objects); slide.objects += objects
             var candidate=presentation.deck; candidate.slides[candidate.slides.firstIndex { $0.id == slide.id }!]=slide
             for asset in payload.assets.values { candidate.assets[asset.id]=asset }
             guard (try? PresentationFile.validate(candidate)) != nil else { NSSound.beep(); return }

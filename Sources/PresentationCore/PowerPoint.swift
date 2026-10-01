@@ -39,6 +39,8 @@ public enum PowerPoint {
         for (index,sourceSlide) in deck.slides.enumerated() {
             let slide=deck.resolved(sourceSlide)
             let n=index+1; var rels=relationship("rIdLayout","slideLayout","../slideLayouts/slideLayout1.xml"), body="", objectNumber=1, hyperlinkNumber=0
+            var numericIDs: [UUID:Int]=[:], nextObjectID=1
+            func indexObjects(_ objects: [SlideObject]) { for object in objects where !object.hidden { if object.kind == .group { indexObjects(object.children) } else { nextObjectID += 1; numericIDs[object.id]=nextObjectID } } }; indexObjects(slide.objects)
             func objectXML(_ o: SlideObject) throws -> String {
                 guard !o.hidden else { return "" }
                 if o.kind == .group {
@@ -47,6 +49,17 @@ public enum PowerPoint {
                 }
                 objectNumber += 1; let id=objectNumber
                 let nv="<p:cNvPr id=\"\(id)\" name=\"\(xml(o.name))\"/>"
+                if let connector=o.connector {
+                    func connection(_ tag: String,_ endpoint: ConnectorEndpoint) -> String {
+                        guard let id=endpoint.objectID.flatMap({ numericIDs[$0] }) else { return "" }; let index: Int
+                        switch endpoint.anchor { case .top,.center:index=0; case .left:index=1; case .bottom:index=2; case .right:index=3 }
+                        return "<a:\(tag) id=\"\(id)\" idx=\"\(index)\"/>"
+                    }
+                    let geometry=connector.kind == .straight ? "line" : connector.kind == .elbow ? "bentConnector3" : "curvedConnector3"
+                    let transform=xfrm(o).replacingOccurrences(of:"<a:xfrm ",with:"<a:xfrm flipH=\"\(connector.end.point.x < connector.start.point.x ? 1 : 0)\" flipV=\"\(connector.end.point.y < connector.start.point.y ? 1 : 0)\" ")
+                    let arrow=connector.arrow ? "<a:tailEnd type=\"triangle\" w=\"med\" len=\"med\"/>" : ""
+                    return "<p:cxnSp><p:nvCxnSpPr>\(nv)<p:cNvCxnSpPr>\(connection("stCxn",connector.start))\(connection("endCxn",connector.end))</p:cNvCxnSpPr><p:nvPr/></p:nvCxnSpPr><p:spPr>\(transform)<a:prstGeom prst=\"\(geometry)\"><a:avLst/></a:prstGeom><a:ln w=\"\(emu(max(1,o.style.strokeWidth)))\">\(solid(o.style.stroke))\(arrow)</a:ln></p:spPr></p:cxnSp>"
+                }
                 if o.opacity < 1 { warnings.insert("Object-level opacity is not retained in PowerPoint export.") }
                 if o.kind == .image, let image=o.image, let asset=deck.assets[image.assetID] {
                     let ext: String
@@ -191,8 +204,9 @@ public enum PowerPoint {
             if let bg=source.first("bg")?.first("srgbClr") { slide.background=bg.rgba }
             if source.first("transition")?.first("fade") != nil { slide.transition.kind = .fade }
             if source.first("transition")?.first("push") != nil { slide.transition.kind = .push }
+            var shapeIDs: [String:UUID]=[:], attachments: [UUID:(String,String,Int,Int)]=[:]
             for node in source.first("spTree")?.children?.compactMap({ $0 as? XMLElement }) ?? [] {
-                guard ["sp","pic","graphicFrame"].contains(node.localName ?? "") else { if node.localName == "grpSp" { warnings.insert("Grouped objects were omitted during import.") }; continue }
+                guard ["sp","pic","graphicFrame","cxnSp"].contains(node.localName ?? "") else { if node.localName == "grpSp" { warnings.insert("Grouped objects were omitted during import.") }; continue }
                 let transform=node.first("xfrm"), off=transform?.first("off"), ext=transform?.first("ext")
                 let frame=Rect((off?.number("x") ?? 0)/9525,(off?.number("y") ?? 0)/9525,max(1,(ext?.number("cx",default:2857500) ?? 2857500)/9525),max(1,(ext?.number("cy",default:952500) ?? 952500)/9525))
                 let geometry=node.first("prstGeom")?.attr("prst") ?? "rect"
@@ -202,6 +216,13 @@ public enum PowerPoint {
                 object.rotation=(transform?.number("rot") ?? 0)/60000; object.shape=map[geometry] ?? .rectangle
                 if let color=node.first("spPr")?.direct("solidFill")?.first("srgbClr") { object.style.fill=color.rgba }
                 if let line=node.first("spPr")?.direct("ln") { object.style.strokeWidth=line.number("w")/9525; if let color=line.first("srgbClr") { object.style.stroke=color.rgba } }
+                shapeIDs[node.first("cNvPr")?.attr("id") ?? ""]=object.id
+                if node.localName == "cxnSp" {
+                    let flipX=transform?.attr("flipH") == "1", flipY=transform?.attr("flipV") == "1"
+                    var connector=Connector(start:ConnectorEndpoint(point:Point(flipX ? frame.maxX : frame.x,flipY ? frame.maxY : frame.y)),end:ConnectorEndpoint(point:Point(flipX ? frame.x : frame.maxX,flipY ? frame.y : frame.maxY)))
+                    connector.kind=geometry.hasPrefix("bent") ? .elbow : geometry.hasPrefix("curved") ? .curved : .straight; connector.arrow=node.first("tailEnd")?.attr("type") == "triangle"; object.connector=connector; object.shape = .line
+                    attachments[object.id]=(node.first("stCxn")?.attr("id") ?? "",node.first("endCxn")?.attr("id") ?? "",Int(node.first("stCxn")?.number("idx") ?? 0),Int(node.first("endCxn")?.number("idx") ?? 0))
+                }
                 if let textBody=node.direct("txBody") {
                     let imported=readText(textBody,defaultStyle:object.textStyle,links:textLinks)
                     object.text=imported.0; object.textRuns=imported.1; if let first=imported.1.first { object.textStyle=first.style }
@@ -224,6 +245,9 @@ public enum PowerPoint {
                     else { warnings.insert("An unsupported graphic was omitted."); continue }
                 }
                 slide.objects.append(object)
+            }
+            for i in slide.objects.indices {
+                if let (start,end,s,e)=attachments[slide.objects[i].id] { let anchors: [ConnectionAnchor]=[.top,.left,.bottom,.right]; slide.objects[i].connector?.start.objectID=shapeIDs[start]; slide.objects[i].connector?.end.objectID=shapeIDs[end]; slide.objects[i].connector?.start.anchor=anchors[max(0,min(3,s))]; slide.objects[i].connector?.end.anchor=anchors[max(0,min(3,e))] }
             }
             if let notesPath=links.values.first(where: { $0.contains("notesSlides/") }) {
                 let notes=try document(notesPath)

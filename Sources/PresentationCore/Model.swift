@@ -108,6 +108,7 @@ public struct SlideObject: Codable, Equatable, Identifiable, Sendable {
     public var animationClip: Rect? = nil
     public var shape: ShapeKind = .rectangle
     public var image: ImageContent? = nil
+    public var connector: Connector? = nil
     public var media: MediaContent? = nil
     public var table: TableContent? = nil
     public var chart: ChartContent? = nil
@@ -119,6 +120,16 @@ public struct SlideObject: Codable, Equatable, Identifiable, Sendable {
         var copy = self; copy.motionID=motionID ?? id; copy.id = UUID(); copy.frame.x += offset.x; copy.frame.y += offset.y
         copy.children = children.map { $0.duplicated(offset: offset) }; return copy
     }
+    public static func duplicateBatch(_ originals: [SlideObject],offset: Point = Point(24,24)) -> [SlideObject] {
+        var copies=originals.map { $0.duplicated(offset:offset) }
+        let mapping=Dictionary(uniqueKeysWithValues:zip(originals.flatMap(\.descendantIDs),copies.flatMap(\.descendantIDs)).map { ($0,$1) })
+        func remap(_ object: inout SlideObject) {
+            if let id=object.connector?.start.objectID, let mapped=mapping[id] { object.connector?.start.objectID=mapped }
+            if let id=object.connector?.end.objectID, let mapped=mapping[id] { object.connector?.end.objectID=mapped }
+            for i in object.children.indices { remap(&object.children[i]) }
+        }
+        for i in copies.indices { remap(&copies[i]) }; return copies
+    }
     public mutating func transform(to newFrame: Rect) {
         let old = frame
         if old != newFrame { layoutLinked=false }
@@ -126,6 +137,10 @@ public struct SlideObject: Codable, Equatable, Identifiable, Sendable {
         for i in children.indices {
             let f = children[i].frame
             children[i].transform(to: Rect(newFrame.x+(f.x-old.x)*sx, newFrame.y+(f.y-old.y)*sy, f.width*sx, f.height*sy))
+        }
+        if var c=connector {
+            c.start.point=Point(newFrame.x+(c.start.point.x-old.x)*sx,newFrame.y+(c.start.point.y-old.y)*sy)
+            c.end.point=Point(newFrame.x+(c.end.point.x-old.x)*sx,newFrame.y+(c.end.point.y-old.y)*sy); connector=c
         }
         frame = newFrame
     }
@@ -162,7 +177,7 @@ public struct Slide: Codable, Equatable, Identifiable, Sendable {
     public var comments: [Comment] = []
     public init() {}
     public func duplicated() -> Slide {
-        var copy = self; copy.id = UUID(); copy.objects = objects.map { $0.duplicated(offset: Point()) }
+        var copy = self; copy.id = UUID(); copy.objects = SlideObject.duplicateBatch(objects,offset:Point())
         let mapping=Dictionary(uniqueKeysWithValues:zip(objects.flatMap(\.descendantIDs),copy.objects.flatMap(\.descendantIDs)).map { ($0,$1) })
         copy.animations=animations?.map { animation in var result=animation; result.id=UUID(); result.objectID=mapping[animation.objectID] ?? animation.objectID; return result }
         copy.comments = []; return copy

@@ -143,3 +143,16 @@ extension AdvancedTests {
         try PresentationFile.validate(deck)
     }
 }
+
+extension AdvancedTests {
+    func testConnectorFollowsObjectsAndDuplicateTargets() throws {
+        var slide=Slide(); let a=SlideObject(kind:.shape,name:"A",frame:Rect(20,30,100,80)), b=SlideObject(kind:.shape,name:"B",frame:Rect(400,200,120,60))
+        var line=SlideObject(kind:.shape,name:"Link",frame:Rect(0,0,1,1)); line.connector=Connector(start:ConnectorEndpoint(point:Point(),objectID:a.id,anchor:.right),end:ConnectorEndpoint(point:Point(),objectID:b.id,anchor:.left)); slide.objects=[a,b,line]
+        XCTAssertEqual(slide.resolvingConnectors().objects[2].connector?.start.point,Point(120,70))
+        slide.objects[0].frame.x=80; XCTAssertEqual(slide.resolvingConnectors().objects[2].connector?.start.point,Point(180,70))
+        let copy=slide.duplicated(); XCTAssertEqual(copy.objects[2].connector?.start.objectID,copy.objects[0].id); XCTAssertNotEqual(copy.objects[2].connector?.start.objectID,a.id)
+        var deck=Presentation(); deck.slides=[slide]
+        let url=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".pptx"); defer { try? FileManager.default.removeItem(at:url) }; _=try PowerPoint.export(deck,to:url)
+        let imported=try PowerPoint.importDeck(from:url).deck.slides[0]; XCTAssertEqual(imported.objects[2].connector?.start.objectID,imported.objects[0].id)
+    }
+}

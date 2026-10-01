@@ -39,6 +39,7 @@ public enum PresentationFile {
                       o.textStyle.lineSpacing.isFinite, (0...10000).contains(o.textStyle.lineSpacing),
                       validColor(o.style.stroke), o.style.fill.map(validColor) ?? true, o.textStyle.color.map(validColor) ?? true else { throw FormatError.invalid("object style is outside supported bounds") }
                 if o.kind == .image && o.image == nil { throw FormatError.invalid("image object has no asset reference") }
+                if let connector=o.connector { guard [connector.start.point.x,connector.start.point.y,connector.end.point.x,connector.end.point.y].allSatisfy({ $0.isFinite && abs($0) <= 1_000_000 }) else { throw FormatError.invalid("invalid connector") } }
                 if let gradient=o.style.gradient { guard validColor(gradient.end), gradient.angle.isFinite, abs(gradient.angle) <= 360000 else { throw FormatError.invalid("invalid gradient") } }
                 if let shadow=o.style.shadow { guard validColor(shadow.color), [shadow.blur,shadow.x,shadow.y].allSatisfy({ $0.isFinite && abs($0) <= 10000 }), shadow.blur >= 0 else { throw FormatError.invalid("invalid shadow") } }
                 try RichText.validateStyle(o.textStyle)
