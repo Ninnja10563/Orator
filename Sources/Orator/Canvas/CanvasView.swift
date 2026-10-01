@@ -9,6 +9,12 @@ final class AccessibleSlideObject: NSAccessibilityElement {
 final class InlineTextView: NSTextView {
     private let typingUndo=UndoManager()
     override var undoManager: UndoManager? { typingUndo }
+    func restoreFormatting(_ value: NSAttributedString,typing: [NSAttributedString.Key:Any],selection: NSRange,name: String) {
+        let previous=attributedString(), previousTyping=typingAttributes, previousSelection=selectedRange()
+        undoManager?.registerUndo(withTarget:self) { target in target.restoreFormatting(previous,typing:previousTyping,selection:previousSelection,name:name) }
+        undoManager?.setActionName(name); textStorage?.setAttributedString(value); typingAttributes=typing
+        setSelectedRange(NSRange(location:min(value.length,selection.location),length:min(selection.length,max(0,value.length-selection.location)))); didChangeText()
+    }
 }
 
 final class CanvasView: NSView, NSTextViewDelegate {
@@ -221,7 +227,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
     @discardableResult func formatTextSelection(_ name: String, mutate: (inout TextStyle) -> Void) -> Bool {
         guard let view=textEditor, let storage=view.textStorage else { return false }
         let selection=view.selectedRange()
-        let before=NSAttributedString(attributedString:storage)
+        let before=NSAttributedString(attributedString:storage), beforeTyping=view.typingAttributes
         if selection.length == 0 {
             var style=NativeText.style(view.typingAttributes); mutate(&style)
             view.typingAttributes=style.attributes(theme:deck.theme)
@@ -231,7 +237,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
                 var style=NativeText.style(attrs); mutate(&style); replacements.append((range,style.attributes(theme:deck.theme)))
             }
             for (range,attributes) in replacements { storage.setAttributes(attributes,range:range) }
-            view.undoManager?.registerUndo(withTarget:view) { target in target.textStorage?.setAttributedString(before); target.didChangeText() }
+            if let inline=view as? InlineTextView { inline.undoManager?.registerUndo(withTarget:inline) { target in target.restoreFormatting(before,typing:beforeTyping,selection:selection,name:name) } }
             view.undoManager?.setActionName(name); view.didChangeText()
         }
         window?.makeFirstResponder(view); view.setSelectedRange(selection); return true
@@ -257,7 +263,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
             if changed.objects[i].name == "Title" { changed.title=String(view.string.prefix(120)) }
             if editingCell == nil && changed.objects[i].textStyle.fit == .expand {
                 let object=changed.objects[i]
-                let size=(view.string as NSString).boundingRect(with:NSSize(width:object.frame.width,height:100000),options:[.usesLineFragmentOrigin,.usesFontLeading],attributes:object.textStyle.attributes(theme:deck.theme))
+                let size=NativeText.attributed(object,theme:deck.theme).boundingRect(with:NSSize(width:object.frame.width,height:100000),options:[.usesLineFragmentOrigin,.usesFontLeading])
                 changed.objects[i].frame.height=max(24,ceil(size.height)+4)
             }
         }

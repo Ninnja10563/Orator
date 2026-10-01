@@ -12,6 +12,16 @@ func checkAdvancedEditing(_ editor: EditorWindowController) throws {
         view.layoutSubtreeIfNeeded(); view.displayIfNeeded()
         if let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds) { view.cacheDisplay(in:view.bounds,to:bitmap); try bitmap.representation(using:.png,properties:[:])?.write(to:URL(fileURLWithPath:output).deletingLastPathComponent().appendingPathComponent(name+".png")) }
     }
+    let textObject=editor.currentSlide.objects[0]; editor.canvas.beginText(textObject)
+    guard let inline=editor.canvas.subviews.compactMap({ $0 as? InlineTextView }).first else { fatalError("Rich text editor missing") }
+    inline.setSelectedRange(NSRange(location:0,length:4)); inline.undoManager?.groupsByEvent=false; inline.undoManager?.beginUndoGrouping()
+    _=editor.canvas.formatTextSelection("Italic") { $0.italic=true }
+    inline.undoManager?.endUndoGrouping()
+    guard NativeText.style(inline.textStorage!.attributes(at:0,effectiveRange:nil)).italic else { fatalError("Text selection formatting failed") }
+    inline.undoManager?.undo(); guard !NativeText.style(inline.textStorage!.attributes(at:0,effectiveRange:nil)).italic else { fatalError("Inline formatting undo failed") }
+    inline.undoManager?.redo(); guard NativeText.style(inline.textStorage!.attributes(at:0,effectiveRange:nil)).italic else { fatalError("Inline formatting redo failed") }
+    guard NativeText.style(inline.textStorage!.attributes(at:0,effectiveRange:nil)).color == nil else { fatalError("Formatting broke theme inheritance") }
+    grouped { editor.canvas.finishText() }; document.undoManager?.undo()
     let tableObject=editor.currentSlide.objects.first { $0.kind == .table }!
     let table=TableEditor(editor:editor,object:tableObject)
     grouped { table.tableView(table.grid,setObjectValue:"Edited in AppKit",for:table.grid.tableColumns[1],row:1) }

@@ -16,7 +16,7 @@ enum NativeText {
             style.fontName=font.familyName ?? font.fontName; style.size=font.pointSize
             let traits=NSFontManager.shared.traits(of:font); style.bold=traits.contains(.boldFontMask); style.italic=traits.contains(.italicFontMask)
         }
-        style.color=(attributes[.foregroundColor] as? NSColor).map(RGBA.init)
+        style.color=attributes[NSAttributedString.Key("OratorThemeForeground")] as? Bool == true ? nil : (attributes[.foregroundColor] as? NSColor).map(RGBA.init)
         style.highlight=(attributes[.backgroundColor] as? NSColor).map(RGBA.init)
         style.underline=(attributes[.underlineStyle] as? Int ?? 0) != 0
         style.strikethrough=(attributes[.strikethroughStyle] as? Int ?? 0) != 0
