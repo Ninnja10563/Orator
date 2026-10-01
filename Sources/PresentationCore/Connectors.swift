@@ -30,3 +30,32 @@ public extension Slide {
         var result=self; result.objects=resolve(self.objects); return result
     }
 }
+
+public extension ConnectionAnchor {
+    func point(on object: SlideObject) -> Point {
+        let f=object.frame, value: Point
+        switch self { case .left:value=Point(f.x,f.midY); case .right:value=Point(f.maxX,f.midY); case .top:value=Point(f.midX,f.y); case .bottom:value=Point(f.midX,f.maxY); case .center:value=Point(f.midX,f.midY) }
+        let angle=object.rotation * .pi/180, dx=value.x-f.midX, dy=value.y-f.midY
+        return Point(f.midX+dx*cos(angle)-dy*sin(angle),f.midY+dx*sin(angle)+dy*cos(angle))
+    }
+}
+public extension Connector {
+    func hit(_ point: Point,tolerance: Double) -> Bool {
+        let a=start.point, b=end.point, mid=(a.x+b.x)/2
+        let points: [Point]
+        switch kind {
+        case .straight:points=[a,b]
+        case .elbow:points=[a,Point(mid,a.y),Point(mid,b.y),b]
+        case .curved:
+            points=(0...48).map { i in
+                let t=Double(i)/48, u=1-t
+                return Point(u*u*u*a.x+3*u*u*t*mid+3*u*t*t*mid+t*t*t*b.x,u*u*u*a.y+3*u*u*t*a.y+3*u*t*t*b.y+t*t*t*b.y)
+            }
+        }
+        return zip(points,points.dropFirst()).contains { a,b in
+            let dx=b.x-a.x, dy=b.y-a.y, length=dx*dx+dy*dy
+            let t=length == 0 ? 0 : min(1,max(0,((point.x-a.x)*dx+(point.y-a.y)*dy)/length))
+            return hypot(point.x-a.x-t*dx,point.y-a.y-t*dy) <= tolerance
+        }
+    }
+}

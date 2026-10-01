@@ -44,11 +44,14 @@ public enum Edit: Codable, Equatable {
 public enum Alignment { case left, center, right, top, middle, bottom, horizontal, vertical }
 public enum Geometry {
     public static func bounds(_ objects: [SlideObject]) -> Rect? { objects.map(\.frame).reduce(nil) { $0?.union($1) ?? $1 } }
-    public static func hit(_ point: Point, object: SlideObject) -> Bool {
+    public static func hit(_ point: Point, object: SlideObject, tolerance: Double = 5) -> Bool {
         guard !object.hidden && !object.locked else { return false }
         let angle = -object.rotation * .pi / 180
         let dx=point.x-object.frame.midX, dy=point.y-object.frame.midY
-        return object.frame.contains(Point(object.frame.midX+dx*cos(angle)-dy*sin(angle),object.frame.midY+dx*sin(angle)+dy*cos(angle)))
+        let local=Point(object.frame.midX+dx*cos(angle)-dy*sin(angle),object.frame.midY+dx*sin(angle)+dy*cos(angle))
+        if let connector=object.connector { return connector.hit(local,tolerance:max(tolerance,object.style.strokeWidth/2)) }
+        if object.kind == .shape && [.line,.arrow,.doubleArrow].contains(object.shape) { return local.x >= object.frame.x-tolerance && local.x <= object.frame.maxX+tolerance && abs(local.y-object.frame.midY) <= max(tolerance,object.style.strokeWidth/2) }
+        return object.frame.contains(local)
     }
     public static func aligned(_ objects: [SlideObject], command: Alignment) -> [SlideObject] {
         guard let b=bounds(objects), objects.count > 1 else { return objects }

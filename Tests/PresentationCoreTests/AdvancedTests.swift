@@ -215,4 +215,12 @@ extension AdvancedTests {
         let copy=object.duplicated(offset:Point(24,24))
         XCTAssertEqual(copy.connector?.start.point,Point(34,44)); XCTAssertEqual(copy.connector?.end.point,Point(64,84))
     }
+    func testConnectorHitTestingUsesPathInsteadOfBoundingBox() {
+        var object=SlideObject(kind:.shape,name:"Connector",frame:Rect(0,0,100,100)); object.connector=Connector(start:ConnectorEndpoint(point:Point()),end:ConnectorEndpoint(point:Point(100,100)))
+        XCTAssertTrue(Geometry.hit(Point(50,52),object:object)); XCTAssertFalse(Geometry.hit(Point(5,90),object:object))
+        object.connector?.kind = .curved
+        XCTAssertTrue(Geometry.hit(Point(50,50),object:object)); XCTAssertFalse(Geometry.hit(Point(5,90),object:object))
+        object.rotation=90
+        XCTAssertTrue(Geometry.hit(Point(50,50),object:object))
+    }
 }

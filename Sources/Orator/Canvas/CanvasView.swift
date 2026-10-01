@@ -43,7 +43,7 @@ final class CanvasView: NSView, NSTextViewDelegate {
     private var textEditor: NSTextView?
     private var editingID: UUID?
     private var editingCell: (Int,Int)?
-    enum DragMode { case none, move, resize(Int), rotate, marquee, guide(Bool), motion(UUID,Int) }
+    enum DragMode { case none, connector(UUID,Bool), move, resize(Int), rotate, marquee, guide(Bool), motion(UUID,Int) }
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
     override init(frame: NSRect) {
@@ -86,13 +86,20 @@ final class CanvasView: NSView, NSTextViewDelegate {
             }
         }
         for object in slide.objects where selected.contains(object.id) {
+            if selected.count == 1, let connector=object.connector {
+                for point in [connector.start.point,connector.end.point] {
+                    let position=displayEndpoint(point,object:object)
+                    NSColor.controlBackgroundColor.setFill(); NSColor.controlAccentColor.setStroke()
+                    let path=NSBezierPath(ovalIn:NSRect(x:position.x-5,y:position.y-5,width:10,height:10)); path.fill(); path.stroke()
+                }; continue
+            }
             let rect=viewRect(object.frame)
             NSColor.controlAccentColor.setStroke(); let path=NSBezierPath(rect:rect); path.lineWidth=1.5; path.stroke()
             if object.rotation != 0 {
                 NSGraphicsContext.saveGraphicsState(); let t=NSAffineTransform(); t.translateX(by:rect.midX,yBy:rect.midY); t.rotate(byDegrees:object.rotation); t.translateX(by:-rect.midX,yBy:-rect.midY); t.concat(); let outline=NSBezierPath(rect:rect); outline.lineWidth=1; outline.setLineDash([3,3],count:2,phase:0); outline.stroke(); NSGraphicsContext.restoreGraphicsState()
             }
         }
-        if let selection=Geometry.bounds(slide.objects.filter { selected.contains($0.id) }), textEditor == nil {
+        if let selection=Geometry.bounds(slide.objects.filter { selected.contains($0.id) }), textEditor == nil, !(selected.count == 1 && slide.objects.first(where: { selected.contains($0.id) })?.connector != nil) {
             for handle in handles(selection) { NSColor.controlBackgroundColor.setFill(); NSColor.controlAccentColor.setStroke(); let p=NSBezierPath(ovalIn:handle); p.fill(); p.stroke() }
         }
         if let id=motionPathID, let animation=slide.animations?.first(where: { $0.id == id }), animation.effect == .motionPath {
@@ -101,6 +108,10 @@ final class CanvasView: NSView, NSTextViewDelegate {
             for point in points { NSColor.controlBackgroundColor.setFill(); NSColor.systemOrange.setStroke(); let handle=NSBezierPath(ovalIn:NSRect(x:point.x-5,y:point.y-5,width:10,height:10)); handle.fill(); handle.stroke() }
         }
         if let m=marquee { NSColor.controlAccentColor.withAlphaComponent(0.10).setFill(); viewRect(m).fill(); NSColor.controlAccentColor.setStroke(); NSBezierPath(rect:viewRect(m)).stroke() }
+    }
+    func displayEndpoint(_ point: Point,object: SlideObject) -> NSPoint {
+        let a=object.rotation*Double.pi/180, dx=point.x-object.frame.midX, dy=point.y-object.frame.midY
+        return NSPoint(x:slideRect.minX+(object.frame.midX+dx*cos(a)-dy*sin(a))*scale,y:slideRect.minY+(object.frame.midY+dx*sin(a)+dy*cos(a))*scale)
     }
     func handles(_ r: Rect) -> [NSRect] {
         let r=viewRect(r)
@@ -116,10 +127,16 @@ final class CanvasView: NSView, NSTextViewDelegate {
         }
         if showRulers && (location.x < 20 || location.y < 20) { mode = .guide(location.x < 20); return }
         let candidates=slide.objects.filter { selected.contains($0.id) && !$0.locked }; originalBounds=Geometry.bounds(candidates)
-        if let b=originalBounds, let index=handles(b).firstIndex(where: { $0.insetBy(dx:-4,dy:-4).contains(convert(event.locationInWindow,from:nil)) }) {
+        if candidates.count == 1, let object=candidates.first, let connector=object.connector {
+            for (index,point) in [connector.start.point,connector.end.point].enumerated() {
+                let handle=displayEndpoint(point,object:object)
+                if hypot(handle.x-location.x,handle.y-location.y) < 10 { mode = .connector(object.id,index == 0); return }
+            }
+        }
+        if !(candidates.count == 1 && candidates.first?.connector != nil), let b=originalBounds, let index=handles(b).firstIndex(where: { $0.insetBy(dx:-4,dy:-4).contains(convert(event.locationInWindow,from:nil)) }) {
             mode=index == 8 ? .rotate : .resize(index); return
         }
-        if let object=slide.objects.reversed().first(where: { Geometry.hit(p,object:$0) }) {
+        if let object=slide.objects.reversed().first(where: { Geometry.hit(p,object:$0,tolerance:6/scale) }) {
             if event.modifierFlags.contains(.shift) { if selected.contains(object.id) { selected.remove(object.id) } else { selected.insert(object.id) } }
             else if !selected.contains(object.id) { selected=[object.id] }
             originalBounds=Geometry.bounds(slide.objects.filter { selected.contains($0.id) && !$0.locked })
@@ -132,6 +149,23 @@ final class CanvasView: NSView, NSTextViewDelegate {
         let p=slidePoint(event), dx=p.x-origin.x, dy=p.y-origin.y
         switch mode {
         case .none: return
+        case let .connector(id,start):
+            guard let index=draft.objects.firstIndex(where: { $0.id == id }), var connector=draft.objects[index].connector else { return }
+            let object=draft.objects[index]
+            func rotated(_ value: Point) -> Point { let a=object.rotation*Double.pi/180, x=value.x-object.frame.midX, y=value.y-object.frame.midY; return Point(object.frame.midX+x*cos(a)-y*sin(a),object.frame.midY+x*sin(a)+y*cos(a)) }
+            connector.start.point=rotated(connector.start.point); connector.end.point=rotated(connector.end.point)
+            var endpoint=ConnectorEndpoint(point:p)
+            if !event.modifierFlags.contains(.option) {
+                var distance=12/scale
+                for target in draft.objects where target.id != id && target.connector == nil && !target.hidden {
+                    for anchor in ConnectionAnchor.allCases {
+                        let point=anchor.point(on:target), gap=hypot(point.x-p.x,point.y-p.y)
+                        if gap < distance { distance=gap; endpoint=ConnectorEndpoint(point:point,objectID:target.id,anchor:anchor) }
+                    }
+                }
+            }
+            if start { connector.start=endpoint } else { connector.end=endpoint }
+            draft.objects[index].rotation=0; draft.objects[index].connector=connector; draft.objects[index].frame=connector.frame; preview=draft
         case let .motion(id,point):
             guard let index=draft.animations?.firstIndex(where: { $0.id == id }) else { return }
             draft.animations?[index].path[point]=p; preview=draft
