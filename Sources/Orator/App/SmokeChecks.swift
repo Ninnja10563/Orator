@@ -50,12 +50,14 @@ func checkEditingInteractions(_ editor: EditorWindowController) throws {
     var deck=document.deck
     let second=Layout.section.makeSlide(); deck.slides.append(second)
     let presenter=PresenterController(deck:deck,startID:deck.slides[0].id)
-    presenter.start(); presenter.next()
+    presenter.rehearse=true
+    presenter.start(); presenter.slideStarted=Date().addingTimeInterval(-2); presenter.next()
     guard presenter.index == 1 else { fatalError("Presenter advance failed") }
     presenter.black(); guard presenter.audience.black else { fatalError("Black screen failed") }
     presenter.pause(); guard presenter.paused else { fatalError("Presenter pause failed") }
-    presenter.previous(); guard presenter.index == 0 else { fatalError("Presenter previous failed") }
+    presenter.previous(); guard presenter.audience.playbackSlide?.id == deck.slides[0].id else { fatalError("Paused navigation retained the wrong slide") }; guard presenter.index == 0 else { fatalError("Presenter previous failed") }
     presenter.end()
+    guard (presenter.rehearsed[deck.slides[0].id] ?? 0) >= 2 else { fatalError("Rehearsal omitted slide timing") }
     guard presenter.audienceWindow == nil else { fatalError("Presenter did not end") }
     window.makeKeyAndOrderFront(nil); window.makeFirstResponder(canvas)
     print("Orator interaction checks: drag/undo, active-text save/undo, panels, and presenter passed")

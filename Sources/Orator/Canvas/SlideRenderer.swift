@@ -18,7 +18,7 @@ extension TextStyle {
         if let options=paragraph {
             p.paragraphSpacingBefore=options.before; p.paragraphSpacing=options.after
             p.headIndent=options.indent; p.firstLineHeadIndent=options.firstLineIndent
-            if options.list != .none { p.textLists=(0...min(8,options.level)).map { _ in NSTextList(markerFormat:options.list == .numbered ? .decimal : .disc,options:0) } }
+            if options.list != .none { p.textLists=(0...max(0,min(8,options.level))).map { _ in NSTextList(markerFormat:options.list == .numbered ? .decimal : .disc,options:0) } }
         }
         var attributes: [NSAttributedString.Key:Any] = [.font: NSFontManager.shared.convert(font,toSize:size*scale), .foregroundColor:(color ?? theme.foreground).nsColor, .paragraphStyle:p, .underlineStyle:underline ? NSUnderlineStyle.single.rawValue : 0, .strikethroughStyle:strikethrough == true ? NSUnderlineStyle.single.rawValue : 0, .kern:tracking ?? 0]
         if let highlight=highlight { attributes[.backgroundColor]=highlight.nsColor }

@@ -4,6 +4,9 @@ import PresentationCore
 
 final class AudienceView: NSView {
     var deck=Presentation(); var index=0; var black=false; var pointer: NSPoint?; var laser=false
+    enum InkTool { case none, pen, highlighter }
+    var inkTool: InkTool = .none
+    var strokes: [(points:[NSPoint],highlight:Bool)]=[]
     var playbackSlide: Slide?
     var wipeFrom: Slide?
     var wipeProgress: Double=1
@@ -28,6 +31,11 @@ final class AudienceView: NSView {
             SlideRenderer.shared.draw(slide:playbackSlide ?? deck.slides[index],deck:deck,in:r)
             NSGraphicsContext.restoreGraphicsState()
         } else { SlideRenderer.shared.draw(slide:playbackSlide ?? deck.slides[index],deck:deck,in:r) }
+        for stroke in strokes where stroke.points.count > 1 {
+            let path=NSBezierPath(); path.move(to:stroke.points[0]); for point in stroke.points.dropFirst() { path.line(to:point) }
+            path.lineWidth=stroke.highlight ? 18 : 3; path.lineCapStyle = .round; path.lineJoinStyle = .round
+            (stroke.highlight ? NSColor.systemYellow.withAlphaComponent(0.35) : NSColor.systemRed).setStroke(); path.stroke()
+        }
         if laser, let p=pointer { NSColor.systemRed.setFill(); NSBezierPath(ovalIn:NSRect(x:p.x-5,y:p.y-5,width:10,height:10)).fill() }
     }
     override func updateTrackingAreas() {
@@ -36,7 +44,13 @@ final class AudienceView: NSView {
         addTrackingArea(NSTrackingArea(rect:.zero,options:[.mouseMoved,.activeAlways,.inVisibleRect],owner:self,userInfo:nil))
     }
     override func keyDown(with event: NSEvent) { onKey?(event.keyCode,event.charactersIgnoringModifiers ?? "") }
-    override func mouseDown(with event: NSEvent) { onKey?(124,"") }
+    override func mouseDown(with event: NSEvent) {
+        if inkTool == .none { onKey?(124,"") }
+        else { strokes.append(([convert(event.locationInWindow,from:nil)],inkTool == .highlighter)); needsDisplay=true }
+    }
+    override func mouseDragged(with event: NSEvent) {
+        guard inkTool != .none, !strokes.isEmpty else { return }; strokes[strokes.count-1].points.append(convert(event.locationInWindow,from:nil)); needsDisplay=true
+    }
     override func mouseMoved(with event: NSEvent) { pointer=convert(event.locationInWindow,from:nil); if laser { needsDisplay=true } }
 }
 final class AudienceWindow: NSWindow { override var canBecomeKey: Bool { true }; override var canBecomeMain: Bool { true } }
@@ -44,7 +58,7 @@ final class PresenterWindow: NSWindow {
     var onKey: ((UInt16,String) -> Void)?
     override func sendEvent(_ event: NSEvent) {
         if event.type == .keyDown, !event.modifierFlags.contains(.command),
-           [53,123,124,125,126,49,36].contains(event.keyCode) || (event.type == .keyDown && ["b","p","l"].contains(event.charactersIgnoringModifiers?.lowercased() ?? "")) {
+           [53,123,124,125,126,49,36].contains(event.keyCode) || (event.type == .keyDown && ["b","p","l","j","d","h","e"].contains(event.charactersIgnoringModifiers?.lowercased() ?? "")) {
             onKey?(event.keyCode,event.charactersIgnoringModifiers ?? ""); return
         }
         super.sendEvent(event)
@@ -65,6 +79,11 @@ final class PresenterController: NSObject, NSWindowDelegate {
     var transitionKind: TransitionKind = .none
     let media=MediaPlayback()
     var mediaSlideID: UUID?
+    var rehearse=false
+    var rehearsed: [UUID:Double]=[:]
+    var onRehearsalFinished: (([UUID:Double]) -> Void)?
+    var slideStarted=Date()
+    var ended=false
     var started=Date(); var paused=false; var pausedAt: Date?
     var elapsedLabel=NSTextField(labelWithString:"")
     var notes=NSTextView()
@@ -78,7 +97,7 @@ final class PresenterController: NSObject, NSWindowDelegate {
         audience.onKey = { [weak self] code,characters in self?.key(code,characters) }; window.contentView=audience
         audienceWindow=window; window.makeKeyAndOrderFront(nil); window.makeFirstResponder(audience)
         if NSScreen.screens.count > 1 { makeConsole() }
-        animationStarted=Date(); visualTimer=Timer.scheduledTimer(withTimeInterval:1.0/60,repeats:true) { [weak self] _ in self?.tick() }
+        slideStarted=Date(); animationStarted=Date(); visualTimer=Timer.scheduledTimer(withTimeInterval:1.0/60,repeats:true) { [weak self] _ in self?.tick() }
         started=Date(); clock=Timer.scheduledTimer(withTimeInterval:1,repeats:true) { [weak self] _ in self?.updateClock() }; update(); scheduleAdvance()
         NSApp.presentationOptions=[.autoHideDock,.autoHideMenuBar]
     }
@@ -92,11 +111,15 @@ final class PresenterController: NSObject, NSWindowDelegate {
         currentImage.imageScaling = .scaleProportionallyUpOrDown; nextImage.imageScaling = .scaleProportionallyUpOrDown; images.heightAnchor.constraint(equalToConstant:280).isActive=true; stack.addArrangedSubview(images)
         elapsedLabel.font = .monospacedDigitSystemFont(ofSize:16,weight:.medium); stack.addArrangedSubview(elapsedLabel)
         let scroll=NSScrollView(); scroll.hasVerticalScroller=true; scroll.documentView=notes; notes.isEditable=false; notes.font = .systemFont(ofSize:22); notes.autoresizingMask=[.width]; notes.textContainer?.widthTracksTextView=true; notes.isVerticallyResizable=true; stack.addArrangedSubview(scroll); scroll.heightAnchor.constraint(greaterThanOrEqualToConstant:200).isActive=true
-        let controls=NSStackView(views:[NSButton(title:"Previous",target:self,action:#selector(previous)),NSButton(title:"Next",target:self,action:#selector(next)),NSButton(title:"Pause",target:self,action:#selector(pause)),NSButton(title:"Black Screen",target:self,action:#selector(black)),NSButton(title:"End",target:self,action:#selector(end))]); stack.addArrangedSubview(controls)
+        let controls=NSStackView(views:[NSButton(title:"Previous",target:self,action:#selector(previous)),NSButton(title:"Next",target:self,action:#selector(next)),NSButton(title:"Pause",target:self,action:#selector(pause)),NSButton(title:"Black Screen",target:self,action:#selector(black)),NSButton(title:"Jump…",target:self,action:#selector(jump)),NSButton(title:"End",target:self,action:#selector(end))]); stack.addArrangedSubview(controls)
         console=window; window.orderFront(nil)
     }
     func key(_ code: UInt16,_ characters: String) {
         switch code { case 53:end(); case 123,126:previous(); case 124,125,49,36:next(); default:
+            if characters.lowercased() == "j" { jump() }
+            if characters.lowercased() == "d" { audience.inkTool=audience.inkTool == .pen ? .none : .pen }
+            if characters.lowercased() == "h" { audience.inkTool=audience.inkTool == .highlighter ? .none : .highlighter }
+            if characters.lowercased() == "e" { audience.strokes=[]; audience.needsDisplay=true }
             if characters.lowercased() == "b" { black() }; if characters.lowercased() == "p" { pause() }; if characters.lowercased() == "l" { audience.laser.toggle(); audience.needsDisplay=true }
         }
     }
@@ -106,10 +129,25 @@ final class PresenterController: NSObject, NSWindowDelegate {
         navigate(1)
     }
     @objc func previous() { navigate(-1) }
+    @objc func jump() {
+        let wasPaused=paused; if !wasPaused { pause() }
+        let alert=NSAlert(); alert.messageText="Go to Slide"; alert.informativeText="Enter a slide number from 1 to \(deck.slides.count)."; alert.addButton(withTitle:"Go"); alert.addButton(withTitle:"Cancel")
+        let field=NSTextField(string:String(index+1)); field.frame=NSRect(x:0,y:0,width:180,height:26); alert.accessoryView=field; alert.window.initialFirstResponder=field
+        let response=alert.runModal(); if !wasPaused { pause() }
+        if response == .alertFirstButtonReturn, let number=Int(field.stringValue), deck.slides.indices.contains(number-1) { showSlide(number-1,delta:number-1-index) }
+    }
+    func recordTime() { if rehearse { rehearsed[deck.slides[index].id,default:0] += max(0,(pausedAt ?? Date()).timeIntervalSince(slideStarted)) } }
+
     func navigate(_ delta: Int) {
         var next=index+delta
         while deck.slides.indices.contains(next), deck.slides[next].skipped { next += delta }
         guard deck.slides.indices.contains(next) else { return }
+        showSlide(next,delta:delta)
+    }
+    func showSlide(_ next: Int,delta: Int) {
+        guard next != index else { return }
+        recordTime(); slideStarted=Date(); if paused { pausedAt=Date() }
+        audience.strokes=[]
         let transition=deck.slides[next].transition
         transitionFrom=deck.resolved(deck.slides[index]); transitionStarted=Date(); transitionDuration=transition.duration; transitionKind=transition.kind
         animationClick=0; animationStarted=Date()
@@ -119,7 +157,7 @@ final class PresenterController: NSObject, NSWindowDelegate {
              animation.duration=transition.duration; if ![TransitionKind.wipe,.continuity,.zoom].contains(transition.kind) { audience.layer?.add(animation,forKey:"slide") }
             if transition.kind == .zoom { let zoom=CABasicAnimation(keyPath:"transform.scale"); zoom.fromValue=0.8; zoom.toValue=1; zoom.duration=transition.duration; audience.layer?.add(zoom,forKey:"zoom") }
         }
-        index=next; audience.black=false; update(); scheduleAdvance()
+        index=next; audience.black=false; for view in audience.subviews { view.isHidden=false }; audience.playbackSlide=nil; update(); scheduleAdvance()
     }
     var audienceRect: NSRect {
         let scale=min(Double(audience.bounds.width)/deck.width,Double(audience.bounds.height)/deck.height)
@@ -138,7 +176,7 @@ final class PresenterController: NSObject, NSWindowDelegate {
         }; updateClock()
     }
     func tick() {
-        guard !paused else { return }
+        guard !paused || audience.playbackSlide == nil else { return }
         let elapsed=Date().timeIntervalSince(animationStarted)
         let reduced=NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         var frame=AnimationEngine.frame(slide:deck.slides[index],click:animationClick,elapsed:elapsed,width:deck.width,height:deck.height,reducedMotion:reduced)
@@ -154,10 +192,29 @@ final class PresenterController: NSObject, NSWindowDelegate {
         let elapsed=Int((pausedAt ?? Date()).timeIntervalSince(started))
         elapsedLabel.stringValue=String(format:"%02d:%02d",elapsed/60,elapsed%60)+"   ·   Slide \(index+1) of \(deck.slides.count)   ·   "+DateFormatter.localizedString(from:Date(),dateStyle:.none,timeStyle:.short)+(paused ? "   Paused" : "")
     }
-    func scheduleAdvance() { advance?.invalidate(); guard !paused, let interval=deck.slides[index].transition.advanceAfter else { return }; advance=Timer.scheduledTimer(withTimeInterval:max(0.2,interval),repeats:false) { [weak self] _ in self?.next() } }
-    @objc func pause() { paused.toggle(); if paused { pausedAt=Date(); advance?.invalidate(); media.pause() } else { media.resume(); if let at=pausedAt { let interval=Date().timeIntervalSince(at); started=started.addingTimeInterval(interval); animationStarted=animationStarted.addingTimeInterval(interval); transitionStarted=transitionStarted.addingTimeInterval(interval) }; pausedAt=nil; scheduleAdvance() }; updateClock() }
+    func scheduleAdvance() {
+        advance?.invalidate(); guard !paused, !rehearse, let interval=deck.slides[index].transition.advanceAfter else { return }
+        let remaining=max(0.05,interval-Date().timeIntervalSince(slideStarted))
+        advance=Timer.scheduledTimer(withTimeInterval:remaining,repeats:false) { [weak self] _ in self?.navigate(1) }
+    }
+    @objc func pause() { paused.toggle(); if paused { pausedAt=Date(); advance?.invalidate(); media.pause() } else { media.resume(); if let at=pausedAt { let interval=Date().timeIntervalSince(at); started=started.addingTimeInterval(interval); slideStarted=slideStarted.addingTimeInterval(interval); animationStarted=animationStarted.addingTimeInterval(interval); transitionStarted=transitionStarted.addingTimeInterval(interval) }; pausedAt=nil; scheduleAdvance() }; updateClock() }
     @objc func black() { audience.black.toggle(); for view in audience.subviews { view.isHidden=audience.black }; audience.needsDisplay=true }
-    @objc func end() { clock?.invalidate(); advance?.invalidate(); visualTimer?.invalidate(); media.stop(); audienceWindow?.orderOut(nil); console?.orderOut(nil); NSApp.presentationOptions=[]; audienceWindow=nil; console=nil }
+    @objc func end() { guard !ended else { return }; ended=true; recordTime(); clock?.invalidate(); advance?.invalidate(); visualTimer?.invalidate(); media.stop(); audienceWindow?.orderOut(nil); console?.orderOut(nil); NSApp.presentationOptions=[]; audienceWindow=nil; console=nil; if rehearse { onRehearsalFinished?(rehearsed) } }
     func windowWillClose(_ notification: Notification) { end() }
     deinit { clock?.invalidate(); advance?.invalidate(); visualTimer?.invalidate() }
+}
+
+extension EditorWindowController {
+    @objc func rehearsePresentation(_ sender: Any?) {
+        canvas.finishText(); presenter?.end()
+        let controller=PresenterController(deck:presentation.deck,startID:selectedSlideID); controller.rehearse=true
+        controller.onRehearsalFinished = { [weak self] timings in
+            guard let self=self, !timings.isEmpty else { return }
+            let alert=NSAlert(); alert.messageText="Keep Rehearsal Timings?"; alert.informativeText="Recorded timings for \(timings.count) slides. Keeping them enables automatic advance on those slides."; alert.addButton(withTitle:"Keep Timings"); alert.addButton(withTitle:"Discard")
+            guard alert.runModal() == .alertFirstButtonReturn else { return }
+            let edits=self.presentation.deck.slides.compactMap { slide -> Edit? in guard let time=timings[slide.id] else { return nil }; var updated=slide; updated.transition.advanceAfter=max(0.2,time); return .replaceSlide(updated) }
+            self.presentation.perform(.batch(edits),named:"Keep Rehearsal Timings")
+        }
+        presenter=controller; controller.start()
+    }
 }
