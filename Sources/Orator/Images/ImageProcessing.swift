@@ -23,7 +23,7 @@ final class ImageProcessingController: NSWindowController {
         let window=NSWindow(contentRect:NSRect(x:0,y:0,width:360,height:120),styleMask:[.titled],backing:.buffered,defer:false); window.title="Remove Background"; window.isReleasedWhenClosed=false
         super.init(window:window); window.center()
         let progress=NSProgressIndicator(); progress.style = .spinning; progress.startAnimation(nil)
-        let root=NSStackView(views:[progress,NSTextField(labelWithString:"Processing on this Mac…"),NSButton(title:"Cancel",target:self,action:#selector(cancel))]); root.frame=window.contentView!.bounds; root.autoresizingMask=[.width,.height]; root.edgeInsets=NSEdgeInsets(top:16,left:16,bottom:16,right:16); window.contentView=root
+        let root=SurfaceStackView(views:[progress,NSTextField(labelWithString:"Processing on this Mac…"),NSButton(title:"Cancel",target:self,action:#selector(cancel))]); root.frame=window.contentView!.bounds; root.autoresizingMask=[.width,.height]; root.edgeInsets=NSEdgeInsets(top:16,left:16,bottom:16,right:16); window.contentView=root
         task=Task { @MainActor [weak self,weak editor] in
             do {
                 let result=try await processor.process(data); try Task.checkCancellation()

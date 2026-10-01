@@ -6,3 +6,8 @@ class SurfaceView: NSView {
     override func draw(_ dirtyRect: NSRect) { NSColor.windowBackgroundColor.setFill(); bounds.fill() }
 }
 final class FlippedView: NSView { override var isFlipped: Bool { true } }
+
+final class SurfaceStackView: NSStackView {
+    override var isOpaque: Bool { true }
+    override func draw(_ dirtyRect: NSRect) { NSColor.windowBackgroundColor.setFill(); bounds.fill(); super.draw(dirtyRect) }
+}

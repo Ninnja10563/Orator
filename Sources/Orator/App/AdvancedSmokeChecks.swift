@@ -27,7 +27,7 @@ func checkAdvancedEditing(_ editor: EditorWindowController) throws {
     try capture(chart,"chart-editor"); chart.close()
     let image=NSImage(size:NSSize(width:640,height:360)); image.lockFocus(); NSColor.systemBlue.setFill(); NSRect(x:0,y:0,width:640,height:360).fill(); NSColor.systemOrange.setFill(); NSRect(x:160,y:90,width:320,height:180).fill(); image.unlockFocus()
     let crop=CropEditor(image:image,content:ImageContent(assetID:UUID())) { _,_ in }
-    crop.preview.setAspect(1)
+    crop.aspect.selectItem(at:1); crop.changeAspect()
     guard abs(crop.preview.crop.width*640-crop.preview.crop.height*360) < 0.01 else { fatalError("Crop aspect ratio failed") }
     try capture(crop,"crop-editor"); crop.close()
     editor.canvas.selected=[editor.currentSlide.objects[0].id]

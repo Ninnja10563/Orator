@@ -11,7 +11,7 @@ final class CommentsPanel: NSWindowController, NSTableViewDataSource, NSTableVie
         let window=NSWindow(contentRect:NSRect(x:0,y:0,width:640,height:480),styleMask:[.titled,.closable,.resizable],backing:.buffered,defer:false)
         window.title="Comments — "+editor.currentSlide.title; window.isReleasedWhenClosed=false
         super.init(window:window); window.center()
-        let root=NSStackView(); root.orientation = .vertical; root.spacing=12; root.edgeInsets=NSEdgeInsets(top:16,left:16,bottom:16,right:16); root.frame=window.contentView!.bounds; root.autoresizingMask=[.width,.height]; window.contentView=root
+        let root=SurfaceStackView(); root.orientation = .vertical; root.spacing=12; root.edgeInsets=NSEdgeInsets(top:16,left:16,bottom:16,right:16); root.frame=window.contentView!.bounds; root.autoresizingMask=[.width,.height]; window.contentView=root
         let scroll=NSScrollView(); scroll.hasVerticalScroller=true; scroll.borderType = .bezelBorder
         let column=NSTableColumn(identifier:.init("thread")); column.title="Discussion"; column.width=590; table.addTableColumn(column); table.headerView=nil; table.dataSource=self; table.delegate=self; table.rowHeight=30; scroll.documentView=table; root.addArrangedSubview(scroll); scroll.heightAnchor.constraint(greaterThanOrEqualToConstant:160).isActive=true
         let details=NSScrollView(); details.hasVerticalScroller=true; details.documentView=detail; detail.isEditable=false; detail.isSelectable=true; detail.font = .systemFont(ofSize:13); detail.autoresizingMask=[.width]; detail.textContainer?.widthTracksTextView=true; detail.isVerticallyResizable=true; root.addArrangedSubview(details); details.heightAnchor.constraint(greaterThanOrEqualToConstant:140).isActive=true

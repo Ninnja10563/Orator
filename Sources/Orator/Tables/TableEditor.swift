@@ -7,21 +7,25 @@ final class TableEditor: NSWindowController, NSTableViewDataSource, NSTableViewD
     let slideID: UUID
     let grid=NSTableView()
     let rowHeight=NSTextField(string:"40"), padding=NSTextField(string:"10")
-    let fill=NSColorWell(), vertical=NSPopUpButton()
+    let fill=NSColorWell(), border=NSColorWell(), vertical=NSPopUpButton(), alignment=NSPopUpButton()
+    let borderWidth=NSTextField(string:"1")
     var rebuilding=false
     var resizeTimer: Timer?
     init(editor: EditorWindowController,object: SlideObject) {
         self.editor=editor; objectID=object.id; slideID=editor.currentSlide.id
-        let window=NSWindow(contentRect:NSRect(x:0,y:0,width:880,height:520),styleMask:[.titled,.closable,.resizable],backing:.buffered,defer:false); window.title="Edit Table"; window.isReleasedWhenClosed=false
+        let window=NSWindow(contentRect:NSRect(x:0,y:0,width:880,height:580),styleMask:[.titled,.closable,.resizable],backing:.buffered,defer:false); window.title="Edit Table"; window.isReleasedWhenClosed=false
         super.init(window:window); window.center()
         let root=SurfaceView(frame:window.contentView!.bounds); root.autoresizingMask=[.width,.height]; window.contentView=root
         let scroll=NSScrollView(frame:NSRect(x:16,y:16,width:848,height:350)); scroll.autoresizingMask=[.width,.height]; scroll.hasVerticalScroller=true; scroll.hasHorizontalScroller=true; scroll.borderType = .bezelBorder
         grid.dataSource=self; grid.delegate=self; grid.allowsMultipleSelection=true; grid.allowsColumnSelection=true; grid.usesAlternatingRowBackgroundColors=true; grid.gridStyleMask=[.solidHorizontalGridLineMask,.solidVerticalGridLineMask]; scroll.documentView=grid; root.addSubview(scroll)
         let actions: [(String,Selector)]=[("Add Row",#selector(addRow)),("Delete Row",#selector(deleteRow)),("Add Column",#selector(addColumn)),("Delete Column",#selector(deleteColumn)),("Merge",#selector(merge)),("Split",#selector(split))]
         let buttons=NSStackView(views:actions.map { NSButton(title:$0.0,target:self,action:$0.1) }); buttons.frame=NSRect(x:16,y:382,width:848,height:28); buttons.autoresizingMask=[.width,.minYMargin]; root.addSubview(buttons)
-        vertical.addItems(withTitles:VerticalAlignment.allCases.map(\.rawValue)); fill.color = .white
+        vertical.addItems(withTitles:VerticalAlignment.allCases.map(\.rawValue)); alignment.addItems(withTitles:TextAlignment.allCases.map(\.rawValue)); fill.color = .white; border.color = .separatorColor
+        for field in [rowHeight,padding,borderWidth] { field.widthAnchor.constraint(equalToConstant:64).isActive=true }
+        rowHeight.setAccessibilityLabel("Row height"); padding.setAccessibilityLabel("Cell padding"); borderWidth.setAccessibilityLabel("Border width")
         let style=NSStackView(views:[NSTextField(labelWithString:"Row height"),rowHeight,NSTextField(labelWithString:"Padding"),padding,fill,vertical,NSButton(title:"Apply to Selected Cells",target:self,action:#selector(styleCells))]); style.frame=NSRect(x:16,y:425,width:848,height:32); style.autoresizingMask=[.width,.minYMargin]; root.addSubview(style)
-        let help=NSTextField(labelWithString:"Double-click to edit. Shift-select rows and column headers for a rectangular range. Drag column dividers to resize."); help.font = .systemFont(ofSize:11); help.textColor = .secondaryLabelColor; help.frame=NSRect(x:16,y:478,width:848,height:24); help.autoresizingMask=[.width,.minYMargin]; root.addSubview(help)
+        let borders=NSStackView(views:[NSTextField(labelWithString:"Border"),border,NSTextField(labelWithString:"Width"),borderWidth,NSTextField(labelWithString:"Text alignment"),alignment]); borders.frame=NSRect(x:16,y:472,width:600,height:32); borders.autoresizingMask=[.width,.minYMargin]; root.addSubview(borders)
+        let help=NSTextField(labelWithString:"Double-click to edit. Shift-select rows and column headers for a rectangular range. Drag column dividers to resize."); help.font = .systemFont(ofSize:11); help.textColor = .secondaryLabelColor; help.frame=NSRect(x:16,y:534,width:848,height:24); help.autoresizingMask=[.width,.minYMargin]; root.addSubview(help)
         rebuild()
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -60,12 +64,13 @@ final class TableEditor: NSWindowController, NSTableViewDataSource, NSTableViewD
     }
     @objc func split() { guard var table=content else { return }; for r in rows { for c in columns { table.split(row:r,column:c) } }; save(table,name:"Split Cells") }
     @objc func styleCells() {
-        guard var table=content, let height=Double(rowHeight.stringValue), height.isFinite, height > 0, let inset=Double(padding.stringValue), inset.isFinite, inset >= 0 else { return }
+        guard var table=content, let height=Double(rowHeight.stringValue), height.isFinite, height > 0, let inset=Double(padding.stringValue), inset.isFinite, inset >= 0, let stroke=Double(borderWidth.stringValue), stroke.isFinite, stroke >= 0 else { return }
         if table.rowHeights == nil { table.rowHeights=Array(repeating:40,count:table.cells.count) }
         for r in rows where table.cells.indices.contains(r) {
             table.rowHeights?[r]=min(1000,height)
             for c in columns where table.cells[r].indices.contains(c) {
-                let key="\(r):\(c)"; var style=table.styles?[key] ?? CellStyle(); style.fill=RGBA(fill.color); style.padding=min(100,inset); style.vertical=VerticalAlignment.allCases[vertical.indexOfSelectedItem]
+                let key="\(r):\(c)"; var style=table.styles?[key] ?? CellStyle(); style.fill=RGBA(fill.color); style.padding=min(100,inset); style.vertical=VerticalAlignment.allCases[vertical.indexOfSelectedItem]; style.border=RGBA(border.color); style.borderWidth=min(100,stroke)
+                var text=style.textStyle ?? TextStyle(); text.size=min(text.size,24); text.alignment=TextAlignment.allCases[alignment.indexOfSelectedItem]; style.textStyle=text
                 if table.styles == nil { table.styles=[:] }; table.styles?[key]=style
             }
         }; save(table,name:"Format Table Cells")

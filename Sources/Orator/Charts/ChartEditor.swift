@@ -11,7 +11,7 @@ final class ChartEditor: NSWindowController, NSTableViewDataSource, NSTableViewD
         self.editor=editor; objectID=object.id; slideID=editor.currentSlide.id
         let window=NSWindow(contentRect:NSRect(x:0,y:0,width:820,height:540),styleMask:[.titled,.closable,.resizable],backing:.buffered,defer:false); window.title="Chart Data"; window.isReleasedWhenClosed=false
         super.init(window:window); window.center()
-        let root=NSStackView(); root.orientation = .vertical; root.spacing=12; root.edgeInsets=NSEdgeInsets(top:16,left:16,bottom:16,right:16); root.frame=window.contentView!.bounds; root.autoresizingMask=[.width,.height]; window.contentView=root
+        let root=SurfaceStackView(); root.orientation = .vertical; root.spacing=12; root.edgeInsets=NSEdgeInsets(top:16,left:16,bottom:16,right:16); root.frame=window.contentView!.bounds; root.autoresizingMask=[.width,.height]; window.contentView=root
         for (label,field) in [("Title",title),("Category / X axis",category),("Value / Y axis",value)] {
             let row=NSStackView(views:[NSTextField(labelWithString:label),field]); root.addArrangedSubview(row); field.widthAnchor.constraint(greaterThanOrEqualToConstant:500).isActive=true
         }

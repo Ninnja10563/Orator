@@ -49,7 +49,7 @@ final class CropEditor: NSWindowController {
         self.apply=apply; preview=CropView(image:image,crop:content.crop)
         let window=NSWindow(contentRect:NSRect(x:0,y:0,width:760,height:600),styleMask:[.titled,.closable,.resizable],backing:.buffered,defer:false); window.title="Crop Image"; window.isReleasedWhenClosed=false
         super.init(window:window); window.center()
-        let root=NSStackView(); root.orientation = .vertical; root.spacing=12; root.edgeInsets=NSEdgeInsets(top:12,left:16,bottom:16,right:16); root.frame=window.contentView!.bounds; root.autoresizingMask=[.width,.height]; window.contentView=root
+        let root=SurfaceStackView(); root.orientation = .vertical; root.spacing=12; root.edgeInsets=NSEdgeInsets(top:12,left:16,bottom:16,right:16); root.frame=window.contentView!.bounds; root.autoresizingMask=[.width,.height]; window.contentView=root
         root.addArrangedSubview(preview); preview.widthAnchor.constraint(equalTo:root.widthAnchor,constant:-32).isActive=true; preview.heightAnchor.constraint(greaterThanOrEqualToConstant:380).isActive=true
         aspect.addItems(withTitles:["Free","Square","4:3","16:9","3:4","9:16"]); aspect.target=self; aspect.action=#selector(changeAspect)
         mask.addItems(withTitles:ImageMask.allCases.map(\.rawValue)); mask.selectItem(withTitle:(content.mask ?? .rectangle).rawValue)
