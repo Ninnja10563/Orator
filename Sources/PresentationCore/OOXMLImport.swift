@@ -45,7 +45,7 @@ extension PowerPoint {
         var importedAssets: [String:Asset]=[:]
         func loadAsset(_ path: String) throws -> Asset { if let cached=importedAssets[path] { return cached }; let value=Asset(name:URL(fileURLWithPath:path).lastPathComponent,data:try read(path)); importedAssets[path]=value; return value }
         if let size=root.first("sldSz") { deck.width=size.number("cx",default:12192000)/9525; deck.height=size.number("cy",default:6858000)/9525 }
-        var warnings=Set(["Import currently reads direct slide text, shapes, pictures, tables, notes and basic transitions. Master and layout appearances are resolved into editable slide objects. Master relationships and animations are not retained. Media playback settings may need adjustment. Keep the original PowerPoint file."])
+        var warnings=Set(["Imported text, shapes, pictures, tables, charts, groups, media, notes and supported transitions remain editable. Master and layout appearances are resolved into slide content; master relationships, comments and object animations are not retained. Media playback settings and unsupported effects may need adjustment. Keep the original PowerPoint file."])
         for ref in root.descendants("sldId") {
             guard let path=rels[ref.attr("r:id")] else { throw FormatError.invalid("missing slide relationship") }
             let source=try document(path), links=try relations(path), textLinks=try relations(path,includeHyperlinks:true)

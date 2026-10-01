@@ -87,7 +87,8 @@ func checkAdvancedEditing(_ editor: EditorWindowController) throws {
     let flattened=MediaPlayback.playbackObjects([mediaGroup])
     guard flattened.count == 1, abs(flattened[0].frame.x-40) < 0.01, abs(flattened[0].frame.y-60) < 0.01, flattened[0].rotation == 90, flattened[0].opacity == 0.5 else { fatalError("Grouped media transforms failed") }
     var backgroundFinished=false
-    DocumentTask.run(title:"Checking background file operations…",window:editor.window,operation: { () -> Bool in !Thread.isMainThread },completion: { result in
+    let backgroundSnapshot=document.snapshot
+    DocumentTask.run(title:"Checking background file operations…",window:editor.window,operation: { () -> Bool in guard !Thread.isMainThread else { return false }; return !(try PDFExporter.data(backgroundSnapshot)).isEmpty },completion: { result in
         guard Thread.isMainThread, (try? result.get()) == true else { fatalError("Document work blocked the UI thread") }; backgroundFinished=true
     })
     let backgroundDeadline=Date().addingTimeInterval(5)

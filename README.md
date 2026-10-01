@@ -37,7 +37,7 @@ Embedded audio/video uses AVFoundation, with preview, playback settings, trim bo
 
 Versioned `.orator` documents preserve the complete native model. NSDocument supplies safe saving and autosave; independent recovery snapshots reopen as labeled copies. Reversible commands group continuous drags into one undo action.
 
-- Vector PDF export, paginated speaker-note PDFs and native printing.
+- Vector PDF export, paginated speaker-note PDFs and native printing. PowerPoint and PDF file operations run off the editing thread.
 - Genuine zipped Office Open XML PPTX import/export with editable rich text, shapes, images, nested groups, connectors, tables, six chart types, embedded chart workbooks, media, notes and compatible transitions.
 - PPTX import resolves master/layout appearances into editable slide content. Export reports unsupported conversions instead of silently claiming lossless compatibility.
 - Google Slides exchange is through PPTX import/export; no Google account or service dependency is built into Orator.
@@ -46,7 +46,7 @@ Versioned `.orator` documents preserve the complete native model. NSDocument sup
 
 ## Verification and remaining work
 
-The [macOS workflow](.github/workflows/macos.yml) builds the arm64 app, runs core regression tests, launches the bundled app, exercises native editing/undo/save/presentation/media behavior, and captures light/dark workspaces and content editors. Independent python-pptx checks and Microsoft's Open XML SDK validate exported presentations and embedded chart workbooks. Tests include an independent PowerPoint fixture, theme/layout inheritance, nested groups, rich text, malformed input, recovery and a 500-slide document.
+The [macOS workflow](.github/workflows/macos.yml) builds the arm64 app, runs core regression tests, launches the bundled app, exercises native editing/undo/save/presentation/media behavior, and captures light/dark workspaces and content editors. A forced-termination check verifies recovery of active text in a fresh process. Independent python-pptx checks and Microsoft's Open XML SDK validate exported presentations and embedded chart workbooks. Tests include an independent PowerPoint fixture, theme/layout inheritance, nested groups, rich text, malformed input, recovery and a 500-slide document.
 
 Hands-on VoiceOver, multiple-display, Vision inference and large-deck performance acceptance remain necessary. Real-time collaboration, full OOXML animation fidelity and production signing/notarization are not complete. See the [implementation status and acceptance plan](docs/DEVELOPMENT.md) for precise boundaries.
 
