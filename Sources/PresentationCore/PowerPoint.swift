@@ -17,13 +17,6 @@ public enum PowerPoint {
     static func color(_ c: RGBA) -> String { "<a:srgbClr val=\"\(hex(c))\"><a:alpha val=\"\(Int(c.alpha*100000))\"/></a:srgbClr>" }
     static func solid(_ c: RGBA) -> String { "<a:solidFill>\(color(c))</a:solidFill>" }
     static func xfrm(_ o: SlideObject) -> String { "<a:xfrm rot=\"\(Int(o.rotation*60000))\"><a:off x=\"\(emu(o.frame.x))\" y=\"\(emu(o.frame.y))\"/><a:ext cx=\"\(emu(o.frame.width))\" cy=\"\(emu(o.frame.height))\"/></a:xfrm>" }
-    static func paragraphs(_ text: String,style: TextStyle,theme: Theme) -> String {
-        let alignment: String
-        switch style.alignment { case .left:alignment="l"; case .center:alignment="ctr"; case .right:alignment="r"; case .justified:alignment="just" }
-        return text.components(separatedBy:"\n").map { line in
-            "<a:p><a:pPr algn=\"\(alignment)\"/><a:r><a:rPr lang=\"en-US\" sz=\"\(Int(style.size*100))\" b=\"\(style.bold ? 1 : 0)\" i=\"\(style.italic ? 1 : 0)\" u=\"\(style.underline ? "sng" : "none")\">\(solid(style.color ?? theme.foreground))<a:latin typeface=\"\(xml(style.fontName))\"/></a:rPr><a:t xml:space=\"preserve\">\(xml(line))</a:t></a:r><a:endParaRPr lang=\"en-US\"/></a:p>"
-        }.joined()
-    }
     static func relationship(_ id: String,_ type: String,_ target: String) -> String { "<Relationship Id=\"\(id)\" Type=\"\(r)/\(type)\" Target=\"\(xml(target))\"/>" }
     static func relationships(_ items: String) -> String { "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Relationships xmlns=\"\(relNS)\">\(items)</Relationships>" }
     static let groupHeader="<p:nvGrpSpPr><p:cNvPr id=\"1\" name=\"\"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x=\"0\" y=\"0\"/><a:ext cx=\"0\" cy=\"0\"/><a:chOff x=\"0\" y=\"0\"/><a:chExt cx=\"0\" cy=\"0\"/></a:xfrm></p:grpSpPr>"
@@ -45,7 +38,7 @@ public enum PowerPoint {
         override("ppt/theme/theme1.xml","theme")
         for (index,sourceSlide) in deck.slides.enumerated() {
             let slide=deck.resolved(sourceSlide)
-            let n=index+1; var rels=relationship("rIdLayout","slideLayout","../slideLayouts/slideLayout1.xml"), body="", objectNumber=1
+            let n=index+1; var rels=relationship("rIdLayout","slideLayout","../slideLayouts/slideLayout1.xml"), body="", objectNumber=1, hyperlinkNumber=0
             func objectXML(_ o: SlideObject) throws -> String {
                 guard !o.hidden else { return "" }
                 if o.kind == .group {
@@ -69,9 +62,7 @@ public enum PowerPoint {
                     return "<p:pic><p:nvPicPr>\(nv)<p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed=\"\(rid)\"/><a:srcRect l=\"\(Int(c.x*100000))\" t=\"\(Int(c.y*100000))\" r=\"\(Int((1-c.maxX)*100000))\" b=\"\(Int((1-c.maxY)*100000))\"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>\(imageTransform)<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
                 }
                 if o.kind == .table, let table=o.table, let columns=table.cells.first?.count, columns > 0 {
-                    let grid=(0..<columns).map { _ in "<a:gridCol w=\"\(emu(o.frame.width/Double(columns)))\"/>" }.joined()
-                    let rows=table.cells.map { row in "<a:tr h=\"\(emu(o.frame.height/Double(table.cells.count)))\">"+row.map { "<a:tc><a:txBody><a:bodyPr/><a:lstStyle/>\(paragraphs($0,style:o.textStyle,theme:deck.theme))</a:txBody><a:tcPr/></a:tc>" }.joined()+"</a:tr>" }.joined()
-                    return "<p:graphicFrame><p:nvGraphicFramePr>\(nv)<p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x=\"\(emu(o.frame.x))\" y=\"\(emu(o.frame.y))\"/><a:ext cx=\"\(emu(o.frame.width))\" cy=\"\(emu(o.frame.height))\"/></p:xfrm><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/table\"><a:tbl><a:tblPr firstRow=\"1\" bandRow=\"1\"/><a:tblGrid>\(grid)</a:tblGrid>\(rows)</a:tbl></a:graphicData></a:graphic></p:graphicFrame>"
+                    return "<p:graphicFrame><p:nvGraphicFramePr>\(nv)<p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x=\"\(emu(o.frame.x))\" y=\"\(emu(o.frame.y))\"/><a:ext cx=\"\(emu(o.frame.width))\" cy=\"\(emu(o.frame.height))\"/></p:xfrm><a:graphic><a:graphicData uri=\"http://schemas.openxmlformats.org/drawingml/2006/table\">\(tableXML(table,object:o,theme:deck.theme))</a:graphicData></a:graphic></p:graphicFrame>"
                 }
                 if let media=o.media, let asset=deck.assets[media.assetID] {
                     let ext=URL(fileURLWithPath:asset.name).pathExtension.lowercased()
@@ -92,7 +83,7 @@ public enum PowerPoint {
                 if o.kind == .chart { warnings.insert("Charts must be flattened to images before export; an unsupported chart was omitted."); return "" }
                 let shapes: [ShapeKind:String]=[.rectangle:"rect",.roundedRectangle:"roundRect",.ellipse:"ellipse",.triangle:"triangle",.diamond:"diamond",.star:"star5",.line:"line",.arrow:"rightArrow"]
                 let style=o.kind == .text ? "<a:noFill/><a:ln><a:noFill/></a:ln>" : solid(o.style.fill ?? deck.theme.accent)+"<a:ln w=\"\(emu(o.style.strokeWidth))\">\(solid(o.style.stroke))</a:ln>"
-                return "<p:sp><p:nvSpPr>\(nv)<p:cNvSpPr txBox=\"\(o.kind == .text ? 1 : 0)\"/><p:nvPr/></p:nvSpPr><p:spPr>\(xfrm(o))<a:prstGeom prst=\"\(shapes[o.shape] ?? "rect")\"><a:avLst/></a:prstGeom>\(style)</p:spPr><p:txBody><a:bodyPr wrap=\"square\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\"/><a:lstStyle/>\(paragraphs(o.text,style:o.textStyle,theme:deck.theme))</p:txBody></p:sp>"
+                return "<p:sp><p:nvSpPr>\(nv)<p:cNvSpPr txBox=\"\(o.kind == .text ? 1 : 0)\"/><p:nvPr/></p:nvSpPr><p:spPr>\(xfrm(o))<a:prstGeom prst=\"\(shapes[o.shape] ?? "rect")\"><a:avLst/></a:prstGeom>\(style)</p:spPr><p:txBody><a:bodyPr wrap=\"square\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\"/><a:lstStyle/>\(paragraphs(o.text,style:o.textStyle,theme:deck.theme,runs:o.textRuns,hyperlink:{ target in hyperlinkNumber += 1; let id="rIdLink\(hyperlinkNumber)"; rels += "<Relationship Id=\"\(id)\" Type=\"\(r)/hyperlink\" Target=\"\(xml(target))\" TargetMode=\"External\"/>"; return id }))</p:txBody></p:sp>"
             }
             for object in slide.objects { body += try objectXML(object) }
             if !(slide.animations ?? []).isEmpty { warnings.insert("Object animations are not exported to PowerPoint yet.") }
@@ -172,20 +163,23 @@ public enum PowerPoint {
                 else if part != "." { parts.append(String(part)) }
             }; return parts.joined(separator:"/")
         }
-        func relations(_ source: String) throws -> [String:String] {
+        func relations(_ source: String,includeHyperlinks: Bool = false) throws -> [String:String] {
             let components=source.split(separator:"/").map(String.init)
             let path=components.dropLast().joined(separator:"/")+"/_rels/"+(components.last ?? "")+".rels"
             guard members.contains(path) else { return [:] }
             let root=try document(path); var result: [String:String]=[:]
-            for rel in root.elements(forName:"Relationship") where rel.attr("TargetMode") != "External" { result[rel.attr("Id")]=try resolve(rel.attr("Target"),relativeTo:source) }; return result
+            for rel in root.elements(forName:"Relationship") {
+                if rel.attr("TargetMode") == "External" { if includeHyperlinks && rel.attr("Type").hasSuffix("/hyperlink") { result[rel.attr("Id")]=rel.attr("Target") }; continue }
+                result[rel.attr("Id")]=try resolve(rel.attr("Target"),relativeTo:source)
+            }; return result
         }
         let root=try document("ppt/presentation.xml"), rels=try relations("ppt/presentation.xml")
         var deck=Presentation(); deck.slides=[]; deck.title=archive.deletingPathExtension().lastPathComponent
         if let size=root.first("sldSz") { deck.width=size.number("cx",default:12192000)/9525; deck.height=size.number("cy",default:6858000)/9525 }
-        var warnings=Set(["Import currently reads direct slide text, shapes, pictures, tables, notes and basic transitions. Master/layout inheritance, rich text runs, charts, media, animations and hyperlinks are not preserved. Keep the original PowerPoint file."])
+        var warnings=Set(["Import currently reads direct slide text, shapes, pictures, tables, notes and basic transitions. Master/layout inheritance, charts and animations are not preserved. Media playback settings may need adjustment. Keep the original PowerPoint file."])
         for ref in root.descendants("sldId") {
             guard let path=rels[ref.attr("r:id")] else { throw FormatError.invalid("missing slide relationship") }
-            let source=try document(path), links=try relations(path)
+            let source=try document(path), links=try relations(path), textLinks=try relations(path,includeHyperlinks:true)
             var slide=Slide(); slide.title=source.first("cSld")?.attr("name") ?? "Slide"; slide.skipped=source.attr("show") == "0"
             if let bg=source.first("bg")?.first("srgbClr") { slide.background=bg.rgba }
             if source.first("transition")?.first("fade") != nil { slide.transition.kind = .fade }
@@ -202,14 +196,8 @@ public enum PowerPoint {
                 if let color=node.first("spPr")?.direct("solidFill")?.first("srgbClr") { object.style.fill=color.rgba }
                 if let line=node.first("spPr")?.direct("ln") { object.style.strokeWidth=line.number("w")/9525; if let color=line.first("srgbClr") { object.style.stroke=color.rgba } }
                 if let textBody=node.direct("txBody") {
-                    object.text=textBody.descendants("p").map { $0.descendants("t").map { $0.stringValue ?? "" }.joined() }.joined(separator:"\n")
-                    if let props=textBody.first("rPr") ?? textBody.first("defRPr") {
-                        object.textStyle.size=max(1,props.number("sz",default:3200)/100); object.textStyle.bold=props.attr("b") == "1"; object.textStyle.italic=props.attr("i") == "1"
-                        object.textStyle.underline=props.attr("u") == "sng"
-                        if let latin=props.first("latin") { object.textStyle.fontName=latin.attr("typeface") }
-                        if let color=props.first("srgbClr") { object.textStyle.color=color.rgba }
-                    }
-                    if let pPr=textBody.first("pPr") { object.textStyle.alignment=["ctr":.center,"r":.right,"just":.justified][pPr.attr("algn")] ?? .left }
+                    let imported=readText(textBody,defaultStyle:object.textStyle,links:textLinks)
+                    object.text=imported.0; object.textRuns=imported.1; if let first=imported.1.first { object.textStyle=first.style }
                     if slide.title.isEmpty || slide.title == "Slide" { slide.title=String(object.text.prefix(100)) }
                 }
                 if node.localName == "pic" {
@@ -225,8 +213,7 @@ public enum PowerPoint {
                 }
                 if node.localName == "graphicFrame" {
                     guard let table=node.first("tbl") else { warnings.insert("A chart or unsupported graphic was omitted."); continue }
-                    object.kind = .table; var content=TableContent()
-                    content.cells=table.descendants("tr").map { $0.descendants("tc").map { $0.descendants("t").map { $0.stringValue ?? "" }.joined(separator:"\n") } }; object.table=content
+                    object.kind = .table; object.table=try readTable(table,style:object.textStyle,links:textLinks)
                 }
                 slide.objects.append(object)
             }
@@ -239,7 +226,7 @@ public enum PowerPoint {
         try PresentationFile.validate(deck); return ImportResult(deck:deck,warnings:warnings.sorted())
     }
 }
-private extension XMLElement {
+extension XMLElement {
     func attr(_ name: String) -> String { attribute(forName:name)?.stringValue ?? "" }
     func number(_ name: String,default fallback: Double = 0) -> Double { Double(attr(name)) ?? fallback }
     func direct(_ name: String) -> XMLElement? { children?.compactMap { $0 as? XMLElement }.first { $0.localName == name } }

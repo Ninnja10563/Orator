@@ -100,3 +100,17 @@ extension AdvancedTests {
         let recovered=try RecoveryStore(directory:url).records(); XCTAssertEqual(recovered.count,1); XCTAssertEqual(recovered.first?.presentation.formatVersion,2)
     }
 }
+
+extension AdvancedTests {
+    func testPowerPointRichRunsLinksAndTableGeometry() throws {
+        let url=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".pptx"); defer { try? FileManager.default.removeItem(at:url) }
+        var deck=Presentation(); var style=TextStyle(); style.bold=true; style.strikethrough=true; style.tracking=1.25; style.hyperlink="https://example.com/report?a=1&b=2"; style.highlight=RGBA(1,1,0)
+        deck.slides[0].objects[0].text="Bold 👋\nSecond line"; deck.slides[0].objects[0].textRuns=[TextRun(location:0,length:7,style:style)]
+        var object=SlideObject(kind:.table,name:"Merged",frame:Rect(40,200,600,300)); var table=TableContent(rows:3,columns:3)
+        table.cells[0][0]="Merged header"; table.columnWidths=[1,2,3]; table.rowHeights=[2,1,1]; try table.merge(CellMerge(row:0,column:0,rows:1,columns:2)); object.table=table; deck.slides[0].objects.append(object)
+        _=try PowerPoint.export(deck,to:url); let result=try PowerPoint.importDeck(from:url).deck
+        let text=result.slides[0].objects[0]; XCTAssertEqual(text.text,deck.slides[0].objects[0].text); XCTAssertEqual(text.textRuns?.first?.style.hyperlink,style.hyperlink); XCTAssertEqual(text.textRuns?.first?.style.strikethrough,true); XCTAssertEqual(text.textRuns?.first?.style.tracking,1.25)
+        let imported=try XCTUnwrap(result.slides[0].objects.last?.table); XCTAssertEqual(imported.merges,table.merges)
+        let frame=imported.cellFrame(row:0,column:0,in:object.frame); XCTAssertEqual(frame.width,300,accuracy:0.01); XCTAssertEqual(frame.height,150,accuracy:0.01)
+    }
+}
