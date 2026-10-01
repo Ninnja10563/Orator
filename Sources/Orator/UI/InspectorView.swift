@@ -42,7 +42,7 @@ final class InspectorView: SurfaceView {
         font.addItems(withTitles:NSFontManager.shared.availableFontFamilies.sorted()); font.target=self; font.action=#selector(changeFont); row("Font",font)
         field("Size",key:"size")
         let traits=NSStackView(views:[bold,italic,underline]); traits.spacing=8; add(traits)
-        for button in [bold,italic,underline] { button.target=self; button.action=#selector(changeTraits); button.font = .systemFont(ofSize:11) }
+        for button in [bold,italic,underline] { button.target=self; button.action=#selector(changeTraits(_:)); button.allowsMixedState=true; button.font = .systemFont(ofSize:11) }
         textColor.target=self; textColor.action=#selector(changeTextColor); row("Text color",textColor)
         alignment.addItems(withTitles:TextAlignment.allCases.map(\.displayName)); alignment.target=self; alignment.action=#selector(changeAlignment); row("Alignment",alignment)
         fit.addItems(withTitles:TextFit.allCases.map(\.displayName)); fit.target=self; fit.action=#selector(changeFit); row("Text fit",fit)
@@ -115,6 +115,11 @@ final class InspectorView: SurfaceView {
         fill.color=(o.style.fill ?? editor.presentation.deck.theme.accent).nsColor; textColor.color=(o.textStyle.color ?? editor.presentation.deck.theme.foreground).nsColor
         font.selectItem(withTitle:o.textStyle.fontName); alignment.selectItem(withTitle:o.textStyle.alignment.displayName); fit.selectItem(withTitle:o.textStyle.fit.displayName)
         bold.state=o.textStyle.bold ? .on : .off; italic.state=o.textStyle.italic ? .on : .off; underline.state=o.textStyle.underline ? .on : .off
+        let geometry: [(String,(SlideObject) -> Double)]=[("x",{ $0.frame.x }),("y",{ $0.frame.y }),("width",{ $0.frame.width }),("height",{ $0.frame.height }),("rotation",{ $0.rotation }),("opacity",{ $0.opacity*100 }),("size",{ $0.textStyle.size })]
+        for (key,value) in geometry { fields[key]?.placeholderString=nil; if objects.contains(where: { abs(value($0)-value(o)) > 0.001 }) { fields[key]?.stringValue=""; fields[key]?.placeholderString="Multiple" } }
+        for (button,value) in [(bold,{ (object: SlideObject) in object.textStyle.bold }),(italic,{ (object: SlideObject) in object.textStyle.italic }),(underline,{ (object: SlideObject) in object.textStyle.underline })] {
+            if objects.contains(where: { value($0) != value(o) }) { button.state = .mixed }
+        }
         if let c=o.chart { chart.selectItem(withTitle:c.kind.displayName) }
     }
     @objc func changeField(_ sender: NSTextField) {
@@ -158,7 +163,10 @@ final class InspectorView: SurfaceView {
     @objc func changeFill() { editor?.mutateSelection("Change Fill") { $0.style.fill=RGBA(fill.color) } }
     @objc func changeTextColor() { editor?.formatText("Change Text Color") { $0.color=RGBA(textColor.color) } }
     @objc func changeFont() { editor?.formatText("Change Font") { $0.fontName=font.titleOfSelectedItem ?? "Helvetica Neue" } }
-    @objc func changeTraits() { editor?.formatText("Format Text") { $0.bold=bold.state == .on; $0.italic=italic.state == .on; $0.underline=underline.state == .on } }
+    @objc func changeTraits(_ sender: NSButton) {
+        let enabled=sender.state != .off
+        editor?.formatText("Format Text") { style in if sender === self.bold { style.bold=enabled }; if sender === self.italic { style.italic=enabled }; if sender === self.underline { style.underline=enabled } }
+    }
     @objc func changeAlignment() { editor?.formatText("Align Text") { $0.alignment=TextAlignment.allCases[alignment.indexOfSelectedItem] } }
     @objc func changeFit() { editor?.mutateSelection("Change Text Fit") { $0.textStyle.fit=TextFit.allCases[fit.indexOfSelectedItem] } }
     @objc func changeChart() { editor?.mutateSelection("Change Chart Type") { $0.chart?.kind=ChartKind.allCases[chart.indexOfSelectedItem] } }
