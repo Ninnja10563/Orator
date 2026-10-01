@@ -118,6 +118,7 @@ public struct SlideObject: Codable, Equatable, Identifiable, Sendable {
     public var descendantIDs: [UUID] { [id]+children.flatMap(\.descendantIDs) }
     public func duplicated(offset: Point = Point(24,24)) -> SlideObject {
         var copy = self; copy.motionID=motionID ?? id; copy.id = UUID(); copy.frame.x += offset.x; copy.frame.y += offset.y
+        if var connector=copy.connector { connector.start.point.x += offset.x; connector.start.point.y += offset.y; connector.end.point.x += offset.x; connector.end.point.y += offset.y; copy.connector=connector }
         copy.children = children.map { $0.duplicated(offset: offset) }; return copy
     }
     public static func duplicateBatch(_ originals: [SlideObject],offset: Point = Point(24,24)) -> [SlideObject] {

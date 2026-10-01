@@ -206,4 +206,13 @@ extension AdvancedTests {
             if [.push,.wipe,.slide].contains(original.transition.kind) { XCTAssertEqual(copy.transition.direction,.up) }
         }
     }
+    func testMalformedMergeDoesNotOverflowAndFreeConnectorDuplicatesWithOffset() throws {
+        var table=TableContent()
+        XCTAssertThrowsError(try table.merge(CellMerge(row:1,column:0,rows:Int.max,columns:1)))
+        XCTAssertFalse(CellMerge(row:Int.max,column:0,rows:Int.max,columns:1).contains(row:1,column:0))
+        var object=SlideObject(kind:.shape,name:"Connector",frame:Rect(10,20,30,40))
+        object.connector=Connector(start:ConnectorEndpoint(point:Point(10,20)),end:ConnectorEndpoint(point:Point(40,60)))
+        let copy=object.duplicated(offset:Point(24,24))
+        XCTAssertEqual(copy.connector?.start.point,Point(34,44)); XCTAssertEqual(copy.connector?.end.point,Point(64,84))
+    }
 }

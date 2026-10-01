@@ -279,10 +279,12 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
         canvas.finishText()
         if let data=NSPasteboard.general.data(forType:Self.objectPasteboard), let payload=try? JSONDecoder().decode(ObjectClipboard.self,from:data) {
             var slide=currentSlide; let objects=SlideObject.duplicateBatch(payload.objects); slide.objects += objects
-            var candidate=presentation.deck; candidate.slides[candidate.slides.firstIndex { $0.id == slide.id }!]=slide
-            for asset in payload.assets.values { candidate.assets[asset.id]=asset }
-            guard (try? PresentationFile.validate(candidate)) != nil else { NSSound.beep(); return }
-            presentation.perform(.batch(payload.assets.values.map(Edit.putAsset)+[.replaceSlide(slide)]),named:"Paste Objects"); canvas.selected=Set(objects.map(\.id)); return
+            guard let replacement=replacementEdit(slide) else { return }
+            let edit=Edit.batch(payload.assets.values.map(Edit.putAsset)+[replacement])
+            var candidate=presentation.deck
+            do { try edit.apply(to:&candidate); try PresentationFile.validate(candidate) }
+            catch { presentation.presentError(error); return }
+            presentation.perform(edit,named:"Paste Objects"); canvas.selected=Set(objects.map(\.id)); return
         }
         if insertImages(from:NSPasteboard.general) { return }
         if let text=NSPasteboard.general.string(forType:.string) { var object=SlideObject(kind:.text,name:"Text",frame:Rect(160,200,700,200)); object.text=text; insert(object) }

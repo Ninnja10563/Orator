@@ -52,6 +52,12 @@ func checkAdvancedEditing(_ editor: EditorWindowController) throws {
     editor.canvas.selected=Set(editor.currentSlide.objects.prefix(2).map(\.id)); grouped { editor.groupObjects(nil) }
     guard let groupID=editor.canvas.selected.first else { fatalError("Grouping failed") }; editor.editGroup(groupID)
     guard editor.currentSlide.id == groupID else { fatalError("Group isolation failed") }
+    editor.canvas.selected=[editor.currentSlide.objects[0].id]; editor.copyObjects(nil)
+    let childCount=editor.currentSlide.objects.count
+    grouped { editor.pasteObjects(nil) }
+    guard editor.currentSlide.objects.count == childCount+1 else { fatalError("Pasting into a group failed") }
+    document.undoManager?.undo()
+    guard editor.currentSlide.objects.count == childCount else { fatalError("Group paste undo failed") }
     let groupedText=editor.currentSlide.objects[0]; editor.canvas.beginText(groupedText)
     let groupedEditor=editor.canvas.subviews.compactMap { $0 as? InlineTextView }.first!; groupedEditor.string="Saved inside group"
     let savedGroup=try PresentationFile.decode(document.data(ofType:"app.orator.presentation"))

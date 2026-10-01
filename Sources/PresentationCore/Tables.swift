@@ -13,7 +13,7 @@ public struct CellStyle: Codable, Equatable, Sendable {
 public struct CellMerge: Codable, Equatable, Sendable {
     public var row: Int; public var column: Int; public var rows: Int; public var columns: Int
     public init(row: Int,column: Int,rows: Int,columns: Int) { self.row=row; self.column=column; self.rows=rows; self.columns=columns }
-    public func contains(row: Int,column: Int) -> Bool { (self.row..<self.row+rows).contains(row) && (self.column..<self.column+columns).contains(column) }
+    public func contains(row: Int,column: Int) -> Bool { self.row >= 0 && self.column >= 0 && row >= self.row && column >= self.column && row-self.row < rows && column-self.column < columns }
 }
 public extension TableContent {
     func cellFrame(row: Int,column: Int,in frame: Rect) -> Rect {
@@ -30,7 +30,7 @@ public extension TableContent {
         return (merged.row,merged.column)
     }
     mutating func merge(_ region: CellMerge) throws {
-        guard region.row >= 0, region.column >= 0, region.rows > 0, region.columns > 0, region.row+region.rows <= cells.count, region.column+region.columns <= (cells.first?.count ?? 0) else { throw FormatError.invalid("merge is outside the table") }
+        guard region.row >= 0, region.column >= 0, region.rows > 0, region.columns > 0, region.row <= cells.count, region.column <= (cells.first?.count ?? 0), region.rows <= cells.count-region.row, region.columns <= (cells.first?.count ?? 0)-region.column else { throw FormatError.invalid("merge is outside the table") }
         let overlap=(merges ?? []).contains { old in (region.row..<region.row+region.rows).contains { r in (region.column..<region.column+region.columns).contains { c in old.contains(row:r,column:c) } } }
         guard !overlap else { throw FormatError.invalid("split existing merged cells before merging an overlapping range") }
         merges=(merges ?? [])+[region]
