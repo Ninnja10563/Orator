@@ -21,7 +21,7 @@ extension PowerPoint {
                 let cell=table.styles?["\(r):\(c)"] ?? CellStyle()
                 var textStyle=cell.textStyle ?? object.textStyle
                 if cell.textStyle == nil { textStyle.size=min(textStyle.size,24); textStyle.bold=r == 0; if r == 0 { let color=theme.accent; textStyle.color=color.red*0.2126+color.green*0.7152+color.blue*0.0722 > 0.6 ? .ink : .white } }
-                let fill=cell.fill ?? (r == 0 ? theme.accent : theme.foreground.withAlpha(r%2 == 0 ? 0.03 : 0.07))
+                let fill=cell.fill ?? (r == 0 ? theme.accent : theme.background)
                 let border=cell.border ?? theme.foreground.withAlpha(0.18)
                 let edges=["lnL","lnR","lnT","lnB"].map { "<a:\($0) w=\"\(emu(cell.borderWidth))\">\(solid(border))<a:prstDash val=\"solid\"/></a:\($0)>" }.joined()
                 let anchor=cell.vertical == .top ? "t" : cell.vertical == .middle ? "ctr" : "b"

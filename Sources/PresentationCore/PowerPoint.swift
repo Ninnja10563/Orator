@@ -103,7 +103,9 @@ public enum PowerPoint {
                 }
                 let shapes: [ShapeKind:String]=[.rectangle:"rect",.roundedRectangle:"roundRect",.ellipse:"ellipse",.circle:"ellipse",.polygon:"hexagon",.doubleArrow:"line",.speechBubble:"wedgeRoundRectCallout",.triangle:"triangle",.diamond:"diamond",.star:"star5",.line:"line",.arrow:"line"]
                 let style=objectStyleXML(o,theme:deck.theme)
-                return "<p:sp><p:nvSpPr>\(nv)<p:cNvSpPr txBox=\"\(o.kind == .text ? 1 : 0)\"/><p:nvPr/></p:nvSpPr><p:spPr>\(xfrm(o))<a:prstGeom prst=\"\(shapes[o.shape] ?? "rect")\"><a:avLst/></a:prstGeom>\(style)</p:spPr><p:txBody><a:bodyPr wrap=\"square\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\"/><a:lstStyle/>\(paragraphs(o.text,style:o.textStyle,theme:deck.theme,runs:o.textRuns,opacity:o.opacity,hyperlink:{ target in hyperlinkNumber += 1; let id="rIdLink\(hyperlinkNumber)"; rels += "<Relationship Id=\"\(id)\" Type=\"\(r)/hyperlink\" Target=\"\(xml(target))\" TargetMode=\"External\"/>"; return id }))</p:txBody></p:sp>"
+                var geometryObject=o
+                if [ShapeKind.line,.arrow,.doubleArrow].contains(o.shape) { geometryObject.frame.y=o.frame.midY; geometryObject.frame.height=1 }
+                return "<p:sp><p:nvSpPr>\(nv)<p:cNvSpPr txBox=\"\(o.kind == .text ? 1 : 0)\"/><p:nvPr/></p:nvSpPr><p:spPr>\(xfrm(geometryObject))<a:prstGeom prst=\"\(shapes[o.shape] ?? "rect")\"><a:avLst/></a:prstGeom>\(style)</p:spPr><p:txBody><a:bodyPr wrap=\"square\" lIns=\"0\" tIns=\"0\" rIns=\"0\" bIns=\"0\"/><a:lstStyle/>\(paragraphs(o.text,style:o.textStyle,theme:deck.theme,runs:o.textRuns,opacity:o.opacity,hyperlink:{ target in hyperlinkNumber += 1; let id="rIdLink\(hyperlinkNumber)"; rels += "<Relationship Id=\"\(id)\" Type=\"\(r)/hyperlink\" Target=\"\(xml(target))\" TargetMode=\"External\"/>"; return id }))</p:txBody></p:sp>"
             }
             for object in slide.objects { body += try objectXML(object) }
             if !(slide.animations ?? []).isEmpty { warnings.insert("Object animations are not exported to PowerPoint yet.") }

@@ -18,7 +18,7 @@ extension PowerPoint {
             let stroke=object.style.strokeWidth > 0 ? object.style.stroke : object.style.fill ?? theme.accent
             let pattern=object.style.borderPattern == .dashed ? "dash" : object.style.borderPattern == .dotted ? "sysDot" : "solid"
             fill += "<a:ln w=\"\(emu(width))\">\(solid(alpha(stroke)))<a:prstDash val=\"\(pattern)\"/>"
-            if object.shape == .arrow || object.shape == .doubleArrow { fill += "<a:tailEnd type=\"triangle\"/>" }; if object.shape == .doubleArrow { fill += "<a:headEnd type=\"triangle\"/>" }; fill += "</a:ln>"
+            if object.shape == .doubleArrow { fill += "<a:headEnd type=\"triangle\"/>" }; if object.shape == .arrow || object.shape == .doubleArrow { fill += "<a:tailEnd type=\"triangle\"/>" }; fill += "</a:ln>"
         }
         if let shadow=object.style.shadow {
             let direction=(atan2(shadow.y,shadow.x)*180 / .pi+360).truncatingRemainder(dividingBy:360)
