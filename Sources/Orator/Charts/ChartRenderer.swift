@@ -10,7 +10,7 @@ extension SlideRenderer {
         drawText(chart.title,style:title,rect:NSRect(x:r.minX,y:r.minY,width:r.width,height:34),theme:deck.theme)
         let legend=chart.showLegend != false
         let plot=NSRect(x:r.minX+72,y:r.minY+48,width:max(1,r.width-100),height:max(1,r.height-(legend ? 150 : 116)))
-        let palette: [RGBA]=[deck.theme.accent,RGBA(0.19,0.55,0.46),RGBA(0.82,0.46,0.20),RGBA(0.55,0.39,0.65),RGBA(0.67,0.28,0.33)]
+        let palette=deck.theme.chartPalette
         func color(_ i: Int) -> NSColor { (series[i].color ?? palette[i%palette.count]).nsColor }
         let values=series.flatMap(\.values), maximum=max(1,values.max() ?? 1), minimum=min(0,values.min() ?? 0), span=maximum-minimum
         let count=chart.labels.count, slot=plot.width/Double(count)

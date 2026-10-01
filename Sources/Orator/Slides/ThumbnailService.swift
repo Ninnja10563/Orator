@@ -15,10 +15,11 @@ final class ThumbnailService {
     private var pending: [UUID:Pending]=[:]
     init() { queue.name="app.orator.thumbnails"; queue.maxConcurrentOperationCount=1; queue.qualityOfService = .userInitiated }
     func request(slide: Slide,deck: Presentation,completion: @escaping (NSImage) -> Void) {
-        if let existing=pending[slide.id], existing.slide == slide, existing.theme == deck.theme { pending[slide.id]?.completions.append(completion); return }
+        let resolved=deck.resolved(slide)
+        if let existing=pending[slide.id], existing.slide == resolved, existing.theme == deck.theme { pending[slide.id]?.completions.append(completion); return }
         pending[slide.id]?.operation.cancel()
         let token=UUID(), operation=BlockOperation(), renderer=self.renderer
-        pending[slide.id]=Pending(token:token,slide:slide,theme:deck.theme,operation:operation,completions:[completion])
+        pending[slide.id]=Pending(token:token,slide:resolved,theme:deck.theme,operation:operation,completions:[completion])
         operation.addExecutionBlock { [weak self,weak operation] in
             guard operation?.isCancelled == false else { return }
             let image: NSImage=autoreleasepool { renderer.thumbnail(slide:slide,deck:deck,size:NSSize(width:240,height:135)) }

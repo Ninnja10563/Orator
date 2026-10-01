@@ -24,7 +24,7 @@ public enum PresentationFile {
         guard !deck.slides.isEmpty, deck.slides.count <= 10000 else { throw FormatError.invalid("invalid slide count") }
         guard deck.formatVersion == 2 else { throw FormatError.unsupportedVersion(deck.formatVersion) }
         func validColor(_ color: RGBA) -> Bool { [color.red,color.green,color.blue,color.alpha].allSatisfy { $0.isFinite && (0...1).contains($0) } }
-        guard [deck.theme.background,deck.theme.foreground,deck.theme.accent].allSatisfy(validColor) else { throw FormatError.invalid("invalid theme colors") }
+        guard ([deck.theme.background,deck.theme.foreground,deck.theme.accent]+(deck.theme.chartColors ?? [])).allSatisfy(validColor) else { throw FormatError.invalid("invalid theme colors") }
         for (id,asset) in deck.assets { guard id == asset.id, asset.data.count <= 100*1024*1024 else { throw FormatError.invalid("invalid asset identifier or size") } }
         var ids=Set<UUID>()
         func unique(_ id: UUID) throws { guard ids.insert(id).inserted else { throw FormatError.invalid("duplicate identifier") } }

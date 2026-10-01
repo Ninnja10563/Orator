@@ -130,7 +130,7 @@ public enum PowerPoint {
         try write("ppt/slideMasters/_rels/slideMaster1.xml.rels",relationships(relationship("rIdLayout","slideLayout","../slideLayouts/slideLayout1.xml")+relationship("rIdTheme","theme","../theme/theme1.xml")))
         try write("ppt/slideLayouts/slideLayout1.xml","<p:sldLayout xmlns:a=\"\(a)\" xmlns:r=\"\(r)\" xmlns:p=\"\(p)\" type=\"blank\" preserve=\"1\"><p:cSld name=\"Blank\"><p:spTree>\(groupHeader)</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>")
         try write("ppt/slideLayouts/_rels/slideLayout1.xml.rels",relationships(relationship("rIdMaster","slideMaster","../slideMasters/slideMaster1.xml")))
-        let colors=[("dk1",deck.theme.foreground),("lt1",deck.theme.background),("dk2",RGBA.ink),("lt2",RGBA.white)]+(1...6).map { ("accent\($0)",deck.theme.accent) }+[("hlink",RGBA.accent),("folHlink",RGBA.accent)]
+        let colors=[("dk1",deck.theme.foreground),("lt1",deck.theme.background),("dk2",RGBA.ink),("lt2",RGBA.white)]+(1...6).map { ("accent\($0)",deck.theme.chartPalette[($0-1)%deck.theme.chartPalette.count]) }+[("hlink",RGBA.accent),("folHlink",RGBA.accent)]
         let scheme=colors.map { "<a:\($0.0)>\(color($0.1))</a:\($0.0)>" }.joined()
         let fonts="<a:latin typeface=\"\(xml(deck.theme.fontName))\"/><a:ea typeface=\"\"/><a:cs typeface=\"\"/>"
         let ph="<a:solidFill><a:schemeClr val=\"phClr\"/></a:solidFill>"

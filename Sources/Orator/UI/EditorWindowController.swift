@@ -160,6 +160,7 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
         let rendered=presentation.deck.resolved(slide)
         if let cached=thumbnails[slide.id], cached.0 == rendered, cached.1 == presentation.deck.theme { image.image=cached.2 }
         else {
+            image.image=thumbnails[slide.id]?.2
             let snapshot=presentation.deck, theme=snapshot.theme
             thumbnailService.request(slide:slide,deck:snapshot) { [weak self,weak image] thumbnail in
                 guard let self=self, let current=self.presentation.deck.slides.first(where: { $0.id == slide.id }), self.presentation.deck.resolved(current) == rendered, self.presentation.deck.theme == theme else { return }

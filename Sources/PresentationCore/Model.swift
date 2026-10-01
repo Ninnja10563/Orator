@@ -187,6 +187,8 @@ public struct Slide: Codable, Equatable, Identifiable, Sendable {
 public struct Theme: Codable, Equatable, Sendable {
     public var name: String; public var background: RGBA; public var foreground: RGBA; public var accent: RGBA
     public var fontName: String
+    public var chartColors: [RGBA]? = nil
+    public var chartPalette: [RGBA] { if let colors=chartColors, !colors.isEmpty { return colors }; return [accent,RGBA(0.19,0.55,0.46),RGBA(0.82,0.46,0.20),RGBA(0.55,0.39,0.65),RGBA(0.67,0.28,0.33),RGBA(0.39,0.47,0.54)] }
     public init(name: String, background: RGBA, foreground: RGBA, accent: RGBA, fontName: String = "Helvetica Neue") {
         self.name=name; self.background=background; self.foreground=foreground; self.accent=accent; self.fontName=fontName
     }

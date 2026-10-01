@@ -59,7 +59,7 @@ extension PowerPoint {
             let map=master?.first("clrMap")
             for alias in ["bg1","bg2","tx1","tx2"] { palette[alias]=palette[map?.attr(alias) ?? ""] }
             let titleFont=theme?.first("majorFont")?.first("latin")?.attr("typeface") ?? "Helvetica Neue", bodyFont=theme?.first("minorFont")?.first("latin")?.attr("typeface") ?? "Helvetica Neue"
-            if deck.slides.isEmpty { deck.theme=Theme(name:theme?.attr("name") ?? "Imported",background:palette["bg1"] ?? palette["lt1"] ?? .white,foreground:palette["tx1"] ?? palette["dk1"] ?? .ink,accent:palette["accent1"] ?? .accent,fontName:bodyFont) }
+            if deck.slides.isEmpty { deck.theme=Theme(name:theme?.attr("name") ?? "Imported",background:palette["bg1"] ?? palette["lt1"] ?? .white,foreground:palette["tx1"] ?? palette["dk1"] ?? .ink,accent:palette["accent1"] ?? .accent,fontName:bodyFont); deck.theme.chartColors=(1...6).compactMap { palette["accent\($0)"] } }
             var slide=Slide(); slide.title=source.first("cSld")?.attr("name") ?? "Slide"; slide.skipped=source.attr("show") == "0"
             slide.background=(source.first("bg") ?? layout?.first("bg") ?? master?.first("bg"))?.officeColor(palette:palette) ?? palette["bg1"]
             if source.first("transition")?.first("fade") != nil { slide.transition.kind = .fade }
