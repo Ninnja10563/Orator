@@ -32,6 +32,8 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
     var presenter: PresenterController?
     var toolWindows: [NSWindowController]=[]
     private var refreshing=false
+    private let thumbnailService=ThumbnailService()
+    private var thumbnailOrder: [UUID]=[]
     private var thumbnails: [UUID:(Slide,Theme,NSImage)]=[:]
     private let slideDrag=NSPasteboard.PasteboardType("app.orator.slide-indices")
     static let slidePasteboard=NSPasteboard.PasteboardType("app.orator.slides")
@@ -157,7 +159,15 @@ final class EditorWindowController: NSWindowController, NSTableViewDataSource, N
         let slide=presentation.deck.slides[row], cell=NSTableCellView(); let image=NSImageView(); image.imageScaling = .scaleProportionallyUpOrDown
         let rendered=presentation.deck.resolved(slide)
         if let cached=thumbnails[slide.id], cached.0 == rendered, cached.1 == presentation.deck.theme { image.image=cached.2 }
-        else { let thumbnail=SlideRenderer.shared.thumbnail(slide:slide,deck:presentation.deck,size:NSSize(width:240,height:135)); thumbnails[slide.id]=(rendered,presentation.deck.theme,thumbnail); image.image=thumbnail }
+        else {
+            let snapshot=presentation.deck, theme=snapshot.theme
+            thumbnailService.request(slide:slide,deck:snapshot) { [weak self,weak image] thumbnail in
+                guard let self=self, let current=self.presentation.deck.slides.first(where: { $0.id == slide.id }), self.presentation.deck.resolved(current) == rendered, self.presentation.deck.theme == theme else { return }
+                self.thumbnails[slide.id]=(rendered,theme,thumbnail); self.thumbnailOrder.removeAll { $0 == slide.id }; self.thumbnailOrder.append(slide.id)
+                while self.thumbnailOrder.count > 160 { self.thumbnails.removeValue(forKey:self.thumbnailOrder.removeFirst()) }
+                image?.image=thumbnail
+            }
+        }
         image.translatesAutoresizingMaskIntoConstraints=false
         let section=(row == 0 || presentation.deck.slides[row-1].section != slide.section) && !slide.section.isEmpty ? slide.section.uppercased()+" · " : ""
         let title=NSTextField(labelWithString:"\(section)\(row+1)  \(slide.skipped ? "[Skipped] " : "")\(slide.title)"); title.font = .systemFont(ofSize:11); title.lineBreakMode = .byTruncatingTail; title.translatesAutoresizingMaskIntoConstraints=false

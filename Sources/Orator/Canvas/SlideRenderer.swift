@@ -9,8 +9,9 @@ extension Rect { var nsRect: NSRect { NSRect(x:x,y:y,width:width,height:height) 
 extension TextStyle {
     var font: NSFont {
         var f=NSFont(name:fontName,size:size) ?? .systemFont(ofSize:size)
-        if bold { f=NSFontManager.shared.convert(f,toHaveTrait:.boldFontMask) }
-        if italic { f=NSFontManager.shared.convert(f,toHaveTrait:.italicFontMask) }; return f
+        var traits=f.fontDescriptor.symbolicTraits
+        if bold { traits.insert(.bold) }; if italic { traits.insert(.italic) }
+        f=NSFont(descriptor:f.fontDescriptor.withSymbolicTraits(traits),size:size) ?? f; return f
     }
     func attributes(theme: Theme, scale: Double = 1) -> [NSAttributedString.Key: Any] {
         let p=NSMutableParagraphStyle(); p.lineSpacing=lineSpacing
@@ -20,7 +21,7 @@ extension TextStyle {
             p.headIndent=options.indent; p.firstLineHeadIndent=options.firstLineIndent
             if options.list != .none { p.textLists=(0...max(0,min(8,options.level))).map { _ in NSTextList(markerFormat:options.list == .numbered ? .decimal : .disc,options:0) } }
         }
-        var attributes: [NSAttributedString.Key:Any] = [.font: NSFontManager.shared.convert(font,toSize:size*scale), .foregroundColor:(color ?? theme.foreground).nsColor, .paragraphStyle:p, .underlineStyle:underline ? NSUnderlineStyle.single.rawValue : 0, .strikethroughStyle:strikethrough == true ? NSUnderlineStyle.single.rawValue : 0, .kern:tracking ?? 0]
+        var attributes: [NSAttributedString.Key:Any] = [.font: (NSFont(descriptor:font.fontDescriptor,size:size*scale) ?? font), .foregroundColor:(color ?? theme.foreground).nsColor, .paragraphStyle:p, .underlineStyle:underline ? NSUnderlineStyle.single.rawValue : 0, .strikethroughStyle:strikethrough == true ? NSUnderlineStyle.single.rawValue : 0, .kern:tracking ?? 0]
         if let highlight=highlight { attributes[.backgroundColor]=highlight.nsColor }
         if let link=hyperlink { attributes[.link]=link }
         if color == nil { attributes[NSAttributedString.Key("OratorThemeForeground")]=true }

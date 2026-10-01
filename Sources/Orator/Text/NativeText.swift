@@ -14,7 +14,7 @@ enum NativeText {
         var style=fallback
         if let font=attributes[.font] as? NSFont {
             style.fontName=font.familyName ?? font.fontName; style.size=font.pointSize
-            let traits=NSFontManager.shared.traits(of:font); style.bold=traits.contains(.boldFontMask); style.italic=traits.contains(.italicFontMask)
+            let traits=font.fontDescriptor.symbolicTraits; style.bold=traits.contains(.bold); style.italic=traits.contains(.italic)
         }
         style.color=attributes[NSAttributedString.Key("OratorThemeForeground")] as? Bool == true ? nil : (attributes[.foregroundColor] as? NSColor).map(RGBA.init)
         style.highlight=(attributes[.backgroundColor] as? NSColor).map(RGBA.init)
@@ -46,7 +46,7 @@ enum NativeText {
     static func scaled(_ value: NSAttributedString, factor: Double) -> NSAttributedString {
         let copy=NSMutableAttributedString(attributedString:value)
         value.enumerateAttribute(.font,in:NSRange(location:0,length:value.length)) { value,range,_ in
-            if let font=value as? NSFont { copy.addAttribute(.font,value:NSFontManager.shared.convert(font,toSize:font.pointSize*factor),range:range) }
+            if let font=value as? NSFont { copy.addAttribute(.font,value:(NSFont(descriptor:font.fontDescriptor,size:font.pointSize*factor) ?? font),range:range) }
         }
         return copy
     }
